@@ -109,3 +109,69 @@ NEXT_PUBLIC_APP_URL=
 - JWT expiry: 3600s (1 hour, auto-refreshed silently)
 - Refresh token expiry: 2592000s (30 days — persistent login)
 - TOTP 2FA: enabled, required on signup
+
+---
+
+## Implementation Parts
+
+### Part 0 — Prerequisites ✅
+- `.nvmrc` with Node 20
+- `.gitignore` updated (covers `.env*`, `.next/`, `.vercel/`, `drizzle/meta/`, etc.)
+- `CLAUDE.md` created
+- RR gain/loss hidden on pending matches in `components/match-card.tsx`
+- Repeated ranking logic extracted to helpers in `lib/mock-data.ts`
+
+### Part 1 — Project Setup ✅
+- Installed: `@supabase/supabase-js`, `@supabase/ssr`, `drizzle-orm`, `drizzle-kit`, `postgres`, `@ducanh2912/next-pwa`, `resend`
+- `lib/supabase-browser.ts` — browser Supabase client
+- `lib/supabase-server.ts` — server Supabase client with cookie adapter
+- `drizzle.config.ts` — points to `drizzle/schema.ts`, reads `DATABASE_URL`
+- `next.config.mjs` — wrapped with `withPWA` (disabled in dev)
+- `.env.local` created (fill in values from Supabase dashboard)
+
+### Part 2 — Database Schema & Migrations
+- Write `drizzle/schema.ts` — `users`, `seasons`, `season_stats`, `matches`, `rr_changes` tables
+- Create `lib/db.ts` — Drizzle client singleton
+- Run `drizzle-kit generate` + `drizzle-kit migrate`
+- Seed one active season row
+
+### Part 3 — Authentication
+- Wire signup/login/verify pages to Supabase Auth
+- TOTP 2FA enrollment + challenge screens
+- `middleware.ts` — session refresh + route protection
+- Sign-out in navbar
+
+### Part 4 — User Profiles
+- Insert `users` row on signup
+- `GET/PATCH /api/users/[id]` and `/api/users/me`
+- Avatar upload via Supabase Storage
+- Wire profile page to real API
+
+### Part 5 — ELO Logic
+- `lib/elo.ts` — `calculateRrChange(playerRR, oppRR1, oppRR2, won)`
+- Unit tests for key matchup scenarios
+
+### Part 6 — Match Submission & Verification
+- `POST /api/matches` — create pending match
+- `GET /api/matches` — list user matches
+- `PATCH /api/matches/[id]/verify` — confirm/reject, trigger ELO, flip `isRevealed` after 5 games
+- Wire submit-match page to real API
+
+### Part 7 — Leaderboard
+- `GET /api/leaderboard` — season_stats joined with users, sorted by RR
+- Wire leaderboard page to real API
+
+### Part 8 — Season System & Admin
+- `POST/GET /api/seasons`
+- Admin page to create seasons and set hidden MMR per player
+- Season selector on leaderboard/profile
+
+### Part 9 — Notifications & Match Expiry
+- Resend email on match submission (verification request)
+- Navbar badge for pending verifications
+- Supabase pg_cron job to expire matches after 7 days
+
+### Part 10 — PWA & Deployment Polish
+- Configure `@ducanh2912/next-pwa` offline caching
+- Fix TypeScript strict mode (remove `ignoreBuildErrors`)
+- Deploy to Vercel with all env vars set
