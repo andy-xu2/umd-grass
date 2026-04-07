@@ -162,13 +162,18 @@ export default function ResetPasswordPage() {
             )}
             {!linkError && (
               <div className="mt-6 flex justify-center">
-                <Link
-                  href="/login"
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const supabase = createClient()
+                    await supabase.auth.signOut()
+                    router.push('/login')
+                  }}
                   className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
                   Back to sign in
-                </Link>
+                </button>
               </div>
             )}
           </CardContent>

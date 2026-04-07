@@ -26,7 +26,7 @@ export default function SignupPage() {
     setIsLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -35,7 +35,7 @@ export default function SignupPage() {
     })
 
     if (error) {
-      // Supabase returns this when email confirmation is off and email is taken
+      // Error-based duplicate detection (email enumeration protection disabled)
       if (
         error.message.toLowerCase().includes('already') ||
         error.message.toLowerCase().includes('registered') ||
@@ -46,6 +46,13 @@ export default function SignupPage() {
       }
       toast.error(error.message)
       setIsLoading(false)
+      return
+    }
+
+    // Silent duplicate detection (email enumeration protection enabled — default)
+    // Supabase returns identities: [] when the email is already registered
+    if (data.user && data.user.identities?.length === 0) {
+      router.push(`/login?notice=account-exists&email=${encodeURIComponent(email)}`)
       return
     }
 
@@ -75,7 +82,7 @@ export default function SignupPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@umd.edu"
+                  placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
