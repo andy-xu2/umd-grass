@@ -28,15 +28,18 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
+  const publicPaths = ['/login', '/signup', '/verify', '/forgot-password', '/reset-password']
+  const isPublic = publicPaths.some(p => pathname.startsWith(p))
+
   // Redirect unauthenticated users away from protected routes
-  if (!user && !pathname.startsWith('/login') && !pathname.startsWith('/signup') && !pathname.startsWith('/verify')) {
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from login/signup (not verify — needed for enrollment)
-  if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
+  // Redirect authenticated users away from login/signup/forgot-password
+  if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup') || pathname.startsWith('/forgot-password'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
