@@ -75,7 +75,7 @@ function LoginContent() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="name@umd.edu"
+                  placeholder="your@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
