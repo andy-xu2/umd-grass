@@ -8,11 +8,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Trophy, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase-browser'
+import { toast } from 'sonner'
 
 export default function SignupPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
-  const [username, setUsername] = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -20,19 +22,30 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password !== confirmPassword) {
+    if (password !== confirmPassword) return
+    setIsLoading(true)
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      },
+    })
+
+    if (error) {
+      toast.error(error.message)
+      setIsLoading(false)
       return
     }
-    setIsLoading(true)
-    // Simulate signup
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    router.push('/verify')
+
+    router.push('/verify?mode=enroll')
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
             <Trophy className="h-8 w-8 text-primary-foreground" />
@@ -60,13 +73,13 @@ export default function SignupPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
+                <Label htmlFor="name">Full Name</Label>
                 <Input
-                  id="username"
+                  id="name"
                   type="text"
-                  placeholder="Choose a username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Your name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   required
                 />
               </div>
@@ -110,7 +123,7 @@ export default function SignupPage() {
                   <p className="text-xs text-destructive">Passwords do not match</p>
                 )}
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading || (password !== confirmPassword)}>
+              <Button type="submit" className="w-full" disabled={isLoading || password !== confirmPassword}>
                 {isLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />

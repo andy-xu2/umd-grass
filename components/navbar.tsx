@@ -1,11 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase-browser'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -16,7 +17,14 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -55,6 +63,15 @@ export function Navbar() {
                 </Link>
               )
             })}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleSignOut}
+              className="ml-2 text-muted-foreground hover:text-foreground"
+              title="Sign out"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -92,6 +109,13 @@ export function Navbar() {
                   </Link>
                 )
               })}
+              <button
+                onClick={handleSignOut}
+                className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+              >
+                <LogOut className="h-5 w-5" />
+                Sign Out
+              </button>
             </div>
           </div>
         )}

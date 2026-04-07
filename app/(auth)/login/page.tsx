@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Trophy, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase-browser'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -19,15 +21,28 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // Simulate login
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    router.push('/dashboard')
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      toast.error(error.message)
+      setIsLoading(false)
+      return
+    }
+
+    // Check if TOTP challenge is required
+    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    if (aalData?.nextLevel === 'aal2' && aalData.nextLevel !== aalData.currentLevel) {
+      router.push('/verify?mode=challenge')
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
             <Trophy className="h-8 w-8 text-primary-foreground" />
