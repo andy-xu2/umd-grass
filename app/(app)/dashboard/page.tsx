@@ -1,23 +1,23 @@
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { StatCard } from '@/components/stat-card'
-import { currentUser, matches, getWinRate } from '@/lib/mock-data'
+import { currentUser, matches, getWinRate, getUserMatches, isUserInMatch } from '@/lib/mock-data'
 import { Gamepad2, Target, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
 export default function DashboardPage() {
-  const confirmedMatches = matches.filter(m => m.status === 'confirmed')
   const pendingMatches = matches.filter(m => m.status === 'pending')
-  const recentMatches = confirmedMatches.slice(0, 5)
+  const recentMatches = getUserMatches(currentUser.id)
+    .filter(m => m.status === 'confirmed')
+    .slice(0, 5)
   const winRate = getWinRate(currentUser.wins, currentUser.gamesPlayed)
 
-  // Calculate recent trend (mock)
   const recentWins = recentMatches.filter(m => {
-    const isTeam1 = m.team1.player1.id === currentUser.id || m.team1.player2.id === currentUser.id
+    const isTeam1 = isUserInMatch(m, currentUser.id, 'team1')
     return (isTeam1 && m.winner === 'team1') || (!isTeam1 && m.winner === 'team2')
   }).length
-  const recentWinRate = Math.round((recentWins / recentMatches.length) * 100)
+  const recentWinRate = getWinRate(recentWins, recentMatches.length)
 
   return (
     <div className="space-y-6">

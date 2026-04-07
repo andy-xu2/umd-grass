@@ -117,13 +117,22 @@ export const matches: Match[] = [
   },
 ]
 
+export const TIER_STYLES: Record<string, string> = {
+  Diamond: 'text-cyan-400',
+  Platinum: 'text-emerald-400',
+  Gold: 'text-yellow-400',
+  Silver: 'text-slate-400',
+  Bronze: 'text-amber-600',
+  Unranked: 'text-muted-foreground',
+}
+
 export function getSkillTier(rr: number): { name: string; color: string } {
-  if (rr >= 2000) return { name: 'Diamond', color: 'text-cyan-400' }
-  if (rr >= 1800) return { name: 'Platinum', color: 'text-emerald-400' }
-  if (rr >= 1600) return { name: 'Gold', color: 'text-yellow-400' }
-  if (rr >= 1400) return { name: 'Silver', color: 'text-slate-400' }
-  if (rr >= 1200) return { name: 'Bronze', color: 'text-amber-600' }
-  return { name: 'Unranked', color: 'text-muted-foreground' }
+  if (rr >= 2000) return { name: 'Diamond', color: TIER_STYLES.Diamond }
+  if (rr >= 1800) return { name: 'Platinum', color: TIER_STYLES.Platinum }
+  if (rr >= 1600) return { name: 'Gold', color: TIER_STYLES.Gold }
+  if (rr >= 1400) return { name: 'Silver', color: TIER_STYLES.Silver }
+  if (rr >= 1200) return { name: 'Bronze', color: TIER_STYLES.Bronze }
+  return { name: 'Unranked', color: TIER_STYLES.Unranked }
 }
 
 export function isUnranked(gamesPlayed: number): boolean {
@@ -133,4 +142,25 @@ export function isUnranked(gamesPlayed: number): boolean {
 export function getWinRate(wins: number, gamesPlayed: number): number {
   if (gamesPlayed === 0) return 0
   return Math.round((wins / gamesPlayed) * 100)
+}
+
+export function getRankedUsers(): User[] {
+  return [...users].sort((a, b) => b.rr - a.rr)
+}
+
+export function getUserRank(userId: string): number {
+  return getRankedUsers().findIndex(u => u.id === userId) + 1
+}
+
+export function getUserMatches(userId: string): Match[] {
+  return matches.filter(m =>
+    m.team1.player1.id === userId ||
+    m.team1.player2.id === userId ||
+    m.team2.player1.id === userId ||
+    m.team2.player2.id === userId
+  )
+}
+
+export function isUserInMatch(match: Match, userId: string, team: 'team1' | 'team2'): boolean {
+  return match[team].player1.id === userId || match[team].player2.id === userId
 }

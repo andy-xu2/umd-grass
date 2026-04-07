@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Match, currentUser } from '@/lib/mock-data'
+import { Match, currentUser, isUserInMatch } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { ArrowUp, ArrowDown, Clock } from 'lucide-react'
 
@@ -10,14 +10,9 @@ interface MatchCardProps {
   compact?: boolean
 }
 
-function isUserInTeam(match: Match, userId: string, team: 'team1' | 'team2'): boolean {
-  const teamData = match[team]
-  return teamData.player1.id === userId || teamData.player2.id === userId
-}
-
 function getUserTeam(match: Match, userId: string): 'team1' | 'team2' | null {
-  if (isUserInTeam(match, userId, 'team1')) return 'team1'
-  if (isUserInTeam(match, userId, 'team2')) return 'team2'
+  if (isUserInMatch(match, userId, 'team1')) return 'team1'
+  if (isUserInMatch(match, userId, 'team2')) return 'team2'
   return null
 }
 

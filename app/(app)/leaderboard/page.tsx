@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { LeaderboardRow } from '@/components/leaderboard-row'
-import { users, currentUser } from '@/lib/mock-data'
+import { getRankedUsers, getUserRank, currentUser } from '@/lib/mock-data'
 import { Input } from '@/components/ui/input'
 import { Search, Trophy } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -10,9 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 export default function LeaderboardPage() {
   const [search, setSearch] = useState('')
 
-  const sortedUsers = useMemo(() => {
-    return [...users].sort((a, b) => b.rr - a.rr)
-  }, [])
+  const sortedUsers = useMemo(() => getRankedUsers(), [])
 
   const filteredUsers = useMemo(() => {
     if (!search.trim()) return sortedUsers
@@ -21,7 +19,7 @@ export default function LeaderboardPage() {
     )
   }, [sortedUsers, search])
 
-  const currentUserRank = sortedUsers.findIndex(u => u.id === currentUser.id) + 1
+  const currentUserRank = getUserRank(currentUser.id)
 
   return (
     <div className="space-y-6">

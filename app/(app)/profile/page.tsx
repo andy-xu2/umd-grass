@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { MatchCard } from '@/components/match-card'
-import { currentUser, matches, getSkillTier, isUnranked, getWinRate, users } from '@/lib/mock-data'
+import { currentUser, getSkillTier, isUnranked, getWinRate, getUserMatches, getUserRank } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, LogOut } from 'lucide-react'
 import Link from 'next/link'
@@ -20,15 +20,8 @@ export default function ProfilePage() {
   const unranked = isUnranked(currentUser.gamesPlayed)
   const winRate = getWinRate(currentUser.wins, currentUser.gamesPlayed)
 
-  // Get all matches involving the current user
-  const userMatches = matches.filter(m =>
-    m.team1.player1.id === currentUser.id ||
-    m.team1.player2.id === currentUser.id ||
-    m.team2.player1.id === currentUser.id ||
-    m.team2.player2.id === currentUser.id
-  )
-
-  const currentRank = [...users].sort((a, b) => b.rr - a.rr).findIndex(u => u.id === currentUser.id) + 1
+  const userMatches = getUserMatches(currentUser.id)
+  const currentRank = getUserRank(currentUser.id)
 
   return (
     <div className="space-y-6">
