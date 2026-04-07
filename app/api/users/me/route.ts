@@ -1,13 +1,14 @@
-// GET  /api/users/me  — current user's profile + active-season stats + rank
-// PATCH /api/users/me  — update name and/or avatarUrl (auth required)
+// GET  /api/users/me            — current user's profile + active-season stats + rank
+// GET  /api/users/me?seasonId=  — same but for the specified season
+// PATCH /api/users/me           — update name and/or avatarUrl (auth required)
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'
 import { eq, and, gt, count } from 'drizzle-orm'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -20,30 +21,36 @@ export async function GET() {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+  const { searchParams } = new URL(request.url)
+  const seasonIdParam = searchParams.get('seasonId')
+
+  let resolvedSeasonId: string | null = seasonIdParam
+  if (!resolvedSeasonId) {
+    const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+    resolvedSeasonId = activeSeason?.id ?? null
+  }
 
   let stats = null
   let rank: number | null = null
 
-  if (activeSeason) {
+  if (resolvedSeasonId) {
     const [seasonStat] = await db
       .select()
       .from(seasonStats)
-      .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, activeSeason.id)))
+      .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, resolvedSeasonId)))
 
     if (seasonStat) {
       stats = seasonStat
 
-      // Rank = number of revealed players with a higher rr + 1
       const [{ value }] = await db
         .select({ value: count() })
         .from(seasonStats)
         .where(
           and(
-            eq(seasonStats.seasonId, activeSeason.id),
+            eq(seasonStats.seasonId, resolvedSeasonId),
             eq(seasonStats.isRevealed, true),
-            gt(seasonStats.rr, seasonStat.rr)
-          )
+            gt(seasonStats.rr, seasonStat.rr),
+          ),
         )
       rank = Number(value) + 1
     }

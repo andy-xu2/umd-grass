@@ -3,10 +3,12 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut } from 'lucide-react'
-import { useState } from 'react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
+
+const ADMIN_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -19,6 +21,15 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    if (!ADMIN_ID) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setIsAdmin(!!user && user.id === ADMIN_ID)
+    })
+  }, [])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -63,6 +74,20 @@ export function Navbar() {
                 </Link>
               )
             })}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  pathname === '/admin'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                )}
+              >
+                <ShieldAlert className="h-4 w-4" />
+                Admin
+              </Link>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -109,6 +134,21 @@ export function Navbar() {
                   </Link>
                 )
               })}
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
+                    pathname === '/admin'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  )}
+                >
+                  <ShieldAlert className="h-5 w-5" />
+                  Admin
+                </Link>
+              )}
               <button
                 onClick={handleSignOut}
                 className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"

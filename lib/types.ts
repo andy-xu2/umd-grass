@@ -1,5 +1,13 @@
 export type MatchStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED'
 
+export interface Season {
+  id: string
+  name: string
+  isActive: boolean
+  startedAt: string
+  endedAt: string | null
+}
+
 export interface PlayerInfo {
   id: string
   name: string

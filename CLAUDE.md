@@ -161,10 +161,14 @@ NEXT_PUBLIC_APP_URL=
 - `GET /api/leaderboard` — season_stats joined with users, sorted by RR
 - Wire leaderboard page to real API
 
-### Part 8 — Season System & Admin
-- `POST/GET /api/seasons`
-- Admin page to create seasons and set hidden MMR per player
-- Season selector on leaderboard/profile
+### Part 8 — Season System & Admin ✅
+- `GET/POST /api/seasons` — list seasons; create season (admin only, deactivates previous + seeds decayed hiddenMmr)
+- `PATCH /api/seasons/[id]/mmr` — admin upserts hiddenMmr for a player in a season
+- `/api/users` and `/api/users/me` extended with `?seasonId=` query param
+- `components/season-selector.tsx` — reusable season dropdown
+- `app/(app)/admin/page.tsx` — create seasons + manage per-player hidden MMR
+- Season selector on leaderboard and profile pages
+- Admin nav link in navbar (visible only to `NEXT_PUBLIC_ADMIN_USER_ID`)
 
 ### Part 9 — Notifications & Match Expiry
 - Resend email on match submission (verification request)

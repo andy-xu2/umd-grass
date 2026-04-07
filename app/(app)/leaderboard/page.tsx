@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { LeaderboardRow } from '@/components/leaderboard-row'
+import { SeasonSelector } from '@/components/season-selector'
 import { Input } from '@/components/ui/input'
 import { Search, Trophy } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,25 +21,28 @@ export default function LeaderboardPage() {
   const [me, setMe] = useState<MeResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [seasonId, setSeasonId] = useState<string | null>(null)
+
+  const load = useCallback(async (sid: string) => {
+    setLoading(true)
+    const [lbRes, meRes] = await Promise.all([
+      fetch(`/api/leaderboard?seasonId=${sid}`),
+      fetch(`/api/users/me?seasonId=${sid}`),
+    ])
+
+    if (lbRes.ok) {
+      const data: LeaderboardResponse = await lbRes.json()
+      setEntries(data.entries)
+    }
+    if (meRes.ok) {
+      setMe(await meRes.json())
+    }
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
-    async function load() {
-      const [lbRes, meRes] = await Promise.all([
-        fetch('/api/leaderboard'),
-        fetch('/api/users/me'),
-      ])
-
-      if (lbRes.ok) {
-        const data: LeaderboardResponse = await lbRes.json()
-        setEntries(data.entries)
-      }
-      if (meRes.ok) {
-        setMe(await meRes.json())
-      }
-      setLoading(false)
-    }
-    load()
-  }, [])
+    if (seasonId) load(seasonId)
+  }, [seasonId, load])
 
   const filteredEntries = useMemo(() => {
     if (!search.trim()) return entries
@@ -52,9 +56,16 @@ export default function LeaderboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold">Leaderboard</h1>
-        <p className="text-sm text-muted-foreground">Top ranked grass volleyball players</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Leaderboard</h1>
+          <p className="text-sm text-muted-foreground">Top ranked grass volleyball players</p>
+        </div>
+        <SeasonSelector
+          value={seasonId}
+          onChange={id => { setSeasonId(id); setSearch('') }}
+          className="w-44"
+        />
       </div>
 
       {/* Current User Rank Card */}

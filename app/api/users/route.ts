@@ -1,23 +1,32 @@
-// GET  /api/users — list all users with their active-season stats (auth required)
-// POST /api/users — create a row in the public `users` table after TOTP enrollment
+// GET  /api/users            — list all users with stats for the active season
+// GET  /api/users?seasonId=  — list all users with stats for the given season
+// POST /api/users            — create a row in the public `users` table after TOTP enrollment
 
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import type { UserWithStats } from '@/lib/types'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+  const { searchParams } = new URL(request.url)
+  const seasonIdParam = searchParams.get('seasonId')
+
+  let resolvedSeasonId: string | null = seasonIdParam
+
+  if (!resolvedSeasonId) {
+    const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+    resolvedSeasonId = activeSeason?.id ?? null
+  }
 
   const allUsers = await db.select().from(users)
 
-  if (!activeSeason) {
+  if (!resolvedSeasonId) {
     const result: UserWithStats[] = allUsers.map(u => ({
       ...u,
       createdAt: u.createdAt.toISOString(),
@@ -29,7 +38,7 @@ export async function GET() {
   const allStats = await db
     .select()
     .from(seasonStats)
-    .where(eq(seasonStats.seasonId, activeSeason.id))
+    .where(eq(seasonStats.seasonId, resolvedSeasonId))
 
   const statsMap = new Map(allStats.map(s => [s.userId, s]))
 

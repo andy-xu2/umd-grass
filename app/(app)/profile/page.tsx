@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { getSkillTier } from '@/lib/mock-data'
 import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
+import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
 import Link from 'next/link'
 
@@ -43,25 +44,28 @@ function getWinRate(wins: number, gamesPlayed: number) {
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [seasonId, setSeasonId] = useState<string | null>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    fetchProfile()
-  }, [])
-
-  async function fetchProfile() {
-    const res = await fetch('/api/users/me')
+  const fetchProfile = useCallback(async (sid?: string) => {
+    setLoading(true)
+    const url = sid ? `/api/users/me?seasonId=${sid}` : '/api/users/me'
+    const res = await fetch(url)
     if (res.ok) {
       const data = await res.json()
       setProfile(data)
       setEditName(data.name)
     }
     setLoading(false)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (seasonId) fetchProfile(seasonId)
+  }, [seasonId, fetchProfile])
 
   async function handleSaveProfile() {
     if (!profile) return
@@ -80,6 +84,10 @@ export default function ProfilePage() {
       toast.error('Failed to update profile')
     }
     setIsSaving(false)
+  }
+
+  function handleSeasonChange(sid: string) {
+    setSeasonId(sid)
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -153,12 +161,18 @@ export default function ProfilePage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Profile</h1>
           <p className="text-sm text-muted-foreground">Manage your account and view stats</p>
         </div>
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <div className="flex items-center gap-2">
+          <SeasonSelector
+            value={seasonId}
+            onChange={handleSeasonChange}
+            className="w-44"
+          />
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="outline" size="icon">
               <Settings className="h-4 w-4" />
@@ -190,6 +204,7 @@ export default function ProfilePage() {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Profile Card */}
