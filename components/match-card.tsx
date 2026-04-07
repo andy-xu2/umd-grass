@@ -48,13 +48,20 @@ export function MatchCard({ match, compact = false }: MatchCardProps) {
             </span>
           </div>
         </div>
-        <div className={cn(
-          'flex items-center gap-1 font-mono text-sm font-semibold',
-          rrChange > 0 ? 'text-primary' : 'text-destructive'
-        )}>
-          {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-          {rrChange > 0 ? '+' : ''}{rrChange}
-        </div>
+        {match.status === 'confirmed' ? (
+          <div className={cn(
+            'flex items-center gap-1 font-mono text-sm font-semibold',
+            rrChange > 0 ? 'text-primary' : 'text-destructive'
+          )}>
+            {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+            {rrChange > 0 ? '+' : ''}{rrChange}
+          </div>
+        ) : (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Clock className="h-3 w-3" />
+            Pending
+          </span>
+        )}
       </div>
     )
   }
@@ -75,7 +82,7 @@ export function MatchCard({ match, compact = false }: MatchCardProps) {
             )}
             <span className="text-xs text-muted-foreground">{match.date}</span>
           </div>
-          {userTeam && (
+          {userTeam && match.status === 'confirmed' && (
             <div className={cn(
               'flex items-center gap-1 font-mono text-sm font-semibold',
               rrChange > 0 ? 'text-primary' : 'text-destructive'
@@ -83,6 +90,12 @@ export function MatchCard({ match, compact = false }: MatchCardProps) {
               {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
               {rrChange > 0 ? '+' : ''}{rrChange} RR
             </div>
+          )}
+          {userTeam && match.status === 'pending' && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              Pending verification
+            </span>
           )}
         </div>
 
