@@ -22,6 +22,7 @@ export function Navbar() {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     if (!ADMIN_ID) return
@@ -30,6 +31,13 @@ export function Navbar() {
       setIsAdmin(!!user && user.id === ADMIN_ID)
     })
   }, [])
+
+  useEffect(() => {
+    fetch('/api/matches/pending-count')
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then(data => setPendingCount(data.count ?? 0))
+      .catch(() => {})
+  }, [pathname])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -58,12 +66,13 @@ export function Navbar() {
             {navItems.map((item) => {
               const Icon = item.icon
               const isActive = pathname === item.href
+              const showBadge = item.href === '/dashboard' && pendingCount > 0
               return (
                 <Link
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                    'relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                     isActive
                       ? 'bg-primary text-primary-foreground'
                       : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
@@ -71,6 +80,11 @@ export function Navbar() {
                 >
                   <Icon className="h-4 w-4" />
                   {item.label}
+                  {showBadge && (
+                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground">
+                      {pendingCount > 9 ? '9+' : pendingCount}
+                    </span>
+                  )}
                 </Link>
               )
             })}
@@ -117,6 +131,7 @@ export function Navbar() {
               {navItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href
+                const showBadge = item.href === '/dashboard' && pendingCount > 0
                 return (
                   <Link
                     key={item.href}
@@ -131,6 +146,11 @@ export function Navbar() {
                   >
                     <Icon className="h-5 w-5" />
                     {item.label}
+                    {showBadge && (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground">
+                        {pendingCount > 9 ? '9+' : pendingCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}

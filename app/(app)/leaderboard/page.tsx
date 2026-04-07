@@ -23,11 +23,12 @@ export default function LeaderboardPage() {
   const [search, setSearch] = useState('')
   const [seasonId, setSeasonId] = useState<string | null>(null)
 
-  const load = useCallback(async (sid: string) => {
+  const load = useCallback(async (sid?: string) => {
     setLoading(true)
+    const qs = sid ? `?seasonId=${sid}` : ''
     const [lbRes, meRes] = await Promise.all([
-      fetch(`/api/leaderboard?seasonId=${sid}`),
-      fetch(`/api/users/me?seasonId=${sid}`),
+      fetch(`/api/leaderboard${qs}`),
+      fetch(`/api/users/me${qs}`),
     ])
 
     if (lbRes.ok) {
@@ -40,6 +41,13 @@ export default function LeaderboardPage() {
     setLoading(false)
   }, [])
 
+  // Initial load — defaults to active season
+  useEffect(() => {
+    load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Re-fetch when user picks a different season
   useEffect(() => {
     if (seasonId) load(seasonId)
   }, [seasonId, load])

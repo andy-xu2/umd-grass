@@ -63,6 +63,13 @@ export default function ProfilePage() {
     setLoading(false)
   }, [])
 
+  // Initial load — no seasonId needed, API defaults to active season
+  useEffect(() => {
+    fetchProfile()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Re-fetch when user picks a different season
   useEffect(() => {
     if (seasonId) fetchProfile(seasonId)
   }, [seasonId, fetchProfile])
