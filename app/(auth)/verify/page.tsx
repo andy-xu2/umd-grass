@@ -1,116 +1,64 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { Trophy, Loader2, ArrowLeft } from 'lucide-react'
+import { Trophy, Loader2, ArrowLeft, Mail } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
 import { toast } from 'sonner'
-import Image from 'next/image'
 
 function VerifyContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const mode = searchParams.get('mode') ?? 'challenge'
+  const email = searchParams.get('email') ?? ''
 
   const [code, setCode] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isResending, setIsResending] = useState(false)
 
-  // Enroll mode state
-  const [factorId, setFactorId] = useState('')
-  const [qrCode, setQrCode] = useState('')
-  const [secret, setSecret] = useState('')
-  const [enrollLoading, setEnrollLoading] = useState(true)
-
-  // Challenge mode state
-  const [challengeId, setChallengeId] = useState('')
-
-  useEffect(() => {
-    if (mode === 'enroll') {
-      enrollTotp()
-    } else {
-      setupChallenge()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode])
-
-  async function enrollTotp() {
-    const supabase = createClient()
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: 'totp',
-      issuer: 'UMD Grass Rankings',
-    })
-    if (error) {
-      toast.error(error.message)
-      setEnrollLoading(false)
-      return
-    }
-    setFactorId(data.id)
-    setQrCode(data.totp.qr_code)
-    setSecret(data.totp.secret)
-    setEnrollLoading(false)
-  }
-
-  async function setupChallenge() {
-    const supabase = createClient()
-    const { data: factors } = await supabase.auth.mfa.listFactors()
-    const totpFactor = factors?.totp?.[0]
-    if (!totpFactor) {
-      router.push('/dashboard')
-      return
-    }
-    const { data, error } = await supabase.auth.mfa.challenge({ factorId: totpFactor.id })
-    if (error) {
-      toast.error(error.message)
-      return
-    }
-    setFactorId(totpFactor.id)
-    setChallengeId(data.id)
-    setEnrollLoading(false)
-  }
-
-  async function handleEnrollVerify() {
+  async function handleVerify(e: React.FormEvent) {
+    e.preventDefault()
+    if (code.length !== 8) return
     setIsLoading(true)
+
     const supabase = createClient()
-    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code })
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'signup',
+    })
+
     if (error) {
       toast.error(error.message)
       setIsLoading(false)
       setCode('')
       return
     }
+
     // Create user row in DB
     const res = await fetch('/api/users', { method: 'POST' })
     if (!res.ok) {
       toast.error('Account created but profile setup failed. Contact an admin.')
     }
+
+    toast.success('Email verified! Welcome.')
     router.push('/dashboard')
   }
 
-  async function handleChallengeVerify() {
-    setIsLoading(true)
+  async function handleResend() {
+    if (!email) return
+    setIsResending(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.mfa.verify({ factorId, challengeId, code })
+    const { error } = await supabase.auth.resend({ type: 'signup', email })
     if (error) {
       toast.error(error.message)
-      setIsLoading(false)
-      setCode('')
-      return
-    }
-    router.push('/dashboard')
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (code.length !== 6) return
-    if (mode === 'enroll') {
-      await handleEnrollVerify()
     } else {
-      await handleChallengeVerify()
+      toast.success('Verification code resent — check your inbox.')
     }
+    setIsResending(false)
   }
 
   return (
@@ -121,45 +69,30 @@ function VerifyContent() {
             <Trophy className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="mt-4 text-2xl font-bold">UMD Grass Rankings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {mode === 'enroll' ? 'Set up two-factor authentication' : 'Verify your identity'}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Verify your email</p>
         </div>
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Two-Factor Authentication</CardTitle>
+            <CardTitle className="text-xl">Check your email</CardTitle>
             <CardDescription>
-              {mode === 'enroll'
-                ? 'Scan the QR code with your authenticator app (e.g. Google Authenticator), then enter the 6-digit code to confirm.'
-                : 'Enter the 6-digit code from your authenticator app.'}
+              We sent an 8-digit code to{' '}
+              <span className="font-medium text-foreground">{email || 'your email'}</span>.
+              Enter it below to confirm your account.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {enrollLoading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {mode === 'enroll' && qrCode && (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="rounded-lg border bg-white p-2">
-                      <Image src={qrCode} alt="TOTP QR Code" width={160} height={160} />
-                    </div>
-                    <p className="text-center text-xs text-muted-foreground">
-                      {"Can't scan? Enter this code manually:"}
-                    </p>
-                    <code className="rounded bg-muted px-2 py-1 text-xs font-mono break-all text-center">
-                      {secret}
-                    </code>
-                  </div>
-                )}
+            <form onSubmit={handleVerify} className="space-y-6">
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                  <Mail className="h-6 w-6 text-primary" />
+                </div>
                 <div className="flex justify-center">
                   <InputOTP
-                    maxLength={6}
+                    maxLength={8}
                     value={code}
-                    onChange={(value) => setCode(value)}
+                    onChange={setCode}
+                    autoFocus
                   >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
@@ -168,28 +101,48 @@ function VerifyContent() {
                       <InputOTPSlot index={3} />
                       <InputOTPSlot index={4} />
                       <InputOTPSlot index={5} />
+                      <InputOTPSlot index={6} />
+                      <InputOTPSlot index={7} />
                     </InputOTPGroup>
                   </InputOTP>
                 </div>
-                <Button type="submit" className="w-full" disabled={isLoading || code.length !== 6}>
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    'Verify'
-                  )}
-                </Button>
-              </form>
-            )}
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || code.length !== 8}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify Email'
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              {"Didn't receive it? "}
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={isResending || !email}
+                className="font-medium text-primary hover:underline disabled:opacity-50"
+              >
+                {isResending ? 'Resending...' : 'Resend code'}
+              </button>
+            </div>
+
             <div className="mt-6 flex justify-center">
               <Link
-                href={mode === 'enroll' ? '/signup' : '/login'}
+                href="/signup"
                 className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {mode === 'enroll' ? 'Back to sign up' : 'Back to login'}
+                Back to sign up
               </Link>
             </div>
           </CardContent>

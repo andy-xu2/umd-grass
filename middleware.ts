@@ -42,17 +42,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // If authenticated on a protected route, enforce AAL2 (TOTP challenge)
-  if (user && !pathname.startsWith('/verify')) {
-    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (aalData && aalData.nextLevel === 'aal2' && aalData.nextLevel !== aalData.currentLevel) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/verify'
-      url.searchParams.set('mode', 'challenge')
-      return NextResponse.redirect(url)
-    }
-  }
-
   return supabaseResponse
 }
 

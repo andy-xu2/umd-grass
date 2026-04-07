@@ -35,12 +35,21 @@ export default function SignupPage() {
     })
 
     if (error) {
+      // Supabase returns this when email confirmation is off and email is taken
+      if (
+        error.message.toLowerCase().includes('already') ||
+        error.message.toLowerCase().includes('registered') ||
+        (error as { code?: string }).code === 'user_already_exists'
+      ) {
+        router.push(`/login?notice=account-exists&email=${encodeURIComponent(email)}`)
+        return
+      }
       toast.error(error.message)
       setIsLoading(false)
       return
     }
 
-    router.push('/verify?mode=enroll')
+    router.push(`/verify?email=${encodeURIComponent(email)}`)
   }
 
   return (

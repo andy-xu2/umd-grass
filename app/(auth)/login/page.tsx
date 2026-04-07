@@ -1,22 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Trophy, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Trophy, Eye, EyeOff, Loader2, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
 import { toast } from 'sonner'
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
-  const [email, setEmail] = useState('')
+  const searchParams = useSearchParams()
+  const notice = searchParams.get('notice')
+  const prefillEmail = searchParams.get('email') ?? ''
+
+  const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (prefillEmail) setEmail(prefillEmail)
+  }, [prefillEmail])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,13 +40,7 @@ export default function LoginPage() {
       return
     }
 
-    // Check if TOTP challenge is required
-    const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    if (aalData?.nextLevel === 'aal2' && aalData.nextLevel !== aalData.currentLevel) {
-      router.push('/verify?mode=challenge')
-    } else {
-      router.push('/dashboard')
-    }
+    router.push('/dashboard')
   }
 
   return (
@@ -50,6 +53,15 @@ export default function LoginPage() {
           <h1 className="mt-4 text-2xl font-bold">UMD Grass Rankings</h1>
           <p className="mt-1 text-sm text-muted-foreground">Competitive doubles volleyball</p>
         </div>
+
+        {notice === 'account-exists' && (
+          <Alert className="mb-4 border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-200">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              An account with that email already exists. Sign in below.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Card>
           <CardHeader className="space-y-1">
@@ -116,5 +128,17 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }
