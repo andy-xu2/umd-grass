@@ -170,8 +170,7 @@ NEXT_PUBLIC_APP_URL=
 - Season selector on leaderboard and profile pages
 - Admin nav link in navbar (visible only to `NEXT_PUBLIC_ADMIN_USER_ID`)
 
-### Part 9 — Notifications & Match Expiry
-- Resend email on match submission (verification request)
+### Part 9 — Match Expiry
 - Navbar badge for pending verifications
 - Supabase pg_cron job to expire matches after 7 days
 
