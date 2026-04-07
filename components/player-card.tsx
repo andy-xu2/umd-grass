@@ -1,18 +1,30 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { User, getSkillTier, isUnranked, getWinRate } from '@/lib/mock-data'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { getSkillTier, getWinRate } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 
+export interface PlayerCardUser {
+  id: string
+  name: string
+  avatarUrl?: string | null
+  /** RR from season_stats; 800 default if no stats yet */
+  rr: number
+  gamesPlayed: number
+  wins: number
+  losses: number
+  /** When false, rank/RR is hidden (fewer than 5 confirmed games) */
+  isRevealed: boolean
+}
+
 interface PlayerCardProps {
-  user: User
+  user: PlayerCardUser
   showStats?: boolean
   className?: string
 }
 
 export function PlayerCard({ user, showStats = true, className }: PlayerCardProps) {
   const tier = getSkillTier(user.rr)
-  const unranked = isUnranked(user.gamesPlayed)
   const winRate = getWinRate(user.wins, user.gamesPlayed)
 
   return (
@@ -20,26 +32,35 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
       <CardContent className="p-6">
         <div className="flex items-start gap-4">
           <Avatar className="h-16 w-16 border-2 border-primary/20">
+            {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
             <AvatarFallback className="bg-secondary text-lg font-semibold">
-              {user.username.slice(0, 2).toUpperCase()}
+              {user.name.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-bold">{user.username}</h3>
-              {unranked ? (
+              <h3 className="text-lg font-bold">{user.name}</h3>
+              {!user.isRevealed ? (
                 <Badge variant="secondary" className="text-xs">
                   Unranked
                 </Badge>
               ) : (
-                <Badge className={cn('text-xs', tier.color, 'bg-secondary border-0')}>
+                <Badge className={cn('text-xs border-0 bg-secondary', tier.color)}>
                   {tier.name}
                 </Badge>
               )}
             </div>
             <div className="mt-1 flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-primary">{user.rr}</span>
-              <span className="text-sm text-muted-foreground">RR</span>
+              {user.isRevealed ? (
+                <>
+                  <span className="text-3xl font-bold text-primary">{user.rr}</span>
+                  <span className="text-sm text-muted-foreground">RR</span>
+                </>
+              ) : (
+                <span className="text-sm text-muted-foreground">
+                  RR hidden until 5 games
+                </span>
+              )}
             </div>
           </div>
         </div>

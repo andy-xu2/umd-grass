@@ -1,25 +1,68 @@
-// TODO (Part 5+): replace mock-data imports with real API calls once
-// match submission (Part 6) and leaderboard (Part 7) APIs are wired up.
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase-server'
+import { db } from '@/lib/db'
+import { users, seasons, seasonStats } from '@/drizzle/schema'
+import { eq, and } from 'drizzle-orm'
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { StatCard } from '@/components/stat-card'
-import { currentUser, matches, getWinRate, getUserMatches, isUserInMatch } from '@/lib/mock-data'
-import { Gamepad2, Target, TrendingUp, Clock } from 'lucide-react'
+import { buildMatchesForUser } from '@/app/api/matches/route'
+import { getWinRate } from '@/lib/mock-data'
+import { Gamepad2, Target, TrendingUp, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { Clock } from 'lucide-react'
 
-export default function DashboardPage() {
-  const pendingMatches = matches.filter(m => m.status === 'pending')
-  const recentMatches = getUserMatches(currentUser.id)
-    .filter(m => m.status === 'confirmed')
-    .slice(0, 5)
-  const winRate = getWinRate(currentUser.wins, currentUser.gamesPlayed)
+export default async function DashboardPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  const recentWins = recentMatches.filter(m => {
-    const isTeam1 = isUserInMatch(m, currentUser.id, 'team1')
-    return (isTeam1 && m.winner === 'team1') || (!isTeam1 && m.winner === 'team2')
-  }).length
-  const recentWinRate = getWinRate(recentWins, recentMatches.length)
+  // Profile
+  const [profile] = await db.select().from(users).where(eq(users.id, user.id))
+
+  // Active season
+  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+
+  // Season stats for this user
+  let stats = null
+  if (activeSeason) {
+    const [s] = await db
+      .select()
+      .from(seasonStats)
+      .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, activeSeason.id)))
+    stats = s ?? null
+  }
+
+  // All matches involving this user
+  const allMatches = await buildMatchesForUser(user.id)
+
+  const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
+
+  // Matches the user needs to verify (they're on team2, status PENDING)
+  const pendingToVerify = allMatches.filter(
+    m =>
+      m.status === 'PENDING' &&
+      (m.team2Player1.id === user.id || m.team2Player2.id === user.id),
+  )
+
+  const rr = stats?.rr ?? 800
+  const gamesPlayed = stats?.gamesPlayed ?? 0
+  const wins = stats?.wins ?? 0
+  const losses = stats?.losses ?? 0
+  const isRevealed = stats?.isRevealed ?? false
+  const winRate = getWinRate(wins, gamesPlayed)
+
+  const playerCardUser = {
+    id: user.id,
+    name: profile?.name ?? user.email ?? 'Unknown',
+    avatarUrl: profile?.avatarUrl ?? null,
+    rr,
+    gamesPlayed,
+    wins,
+    losses,
+    isRevealed,
+  }
 
   return (
     <div className="space-y-6">
@@ -27,44 +70,33 @@ export default function DashboardPage() {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Welcome back, {currentUser.username}</p>
+          <p className="text-sm text-muted-foreground">
+            Welcome back, {profile?.name ?? 'Player'}
+          </p>
         </div>
-        {pendingMatches.length > 0 && (
+        {pendingToVerify.length > 0 && (
           <Link href="/submit-match">
             <Button variant="outline" className="gap-2">
               <Clock className="h-4 w-4" />
-              {pendingMatches.length} Pending Verification
+              {pendingToVerify.length} Pending Verification
             </Button>
           </Link>
         )}
       </div>
 
       {/* Player Card */}
-      <PlayerCard user={currentUser} />
+      <PlayerCard user={playerCardUser} />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          label="Games Played"
-          value={currentUser.gamesPlayed}
-          icon={Gamepad2}
-        />
-        <StatCard
-          label="Win Rate"
-          value={`${winRate}%`}
-          icon={Target}
-          trend={{ value: recentWinRate - winRate, isPositive: recentWinRate >= winRate }}
-        />
+        <StatCard label="Games Played" value={gamesPlayed} icon={Gamepad2} />
+        <StatCard label="Win Rate" value={`${winRate}%`} icon={Target} />
         <StatCard
           label="Current RR"
-          value={currentUser.rr}
+          value={isRevealed ? rr : '—'}
           icon={TrendingUp}
         />
-        <StatCard
-          label="Total Wins"
-          value={currentUser.wins}
-          icon={Target}
-        />
+        <StatCard label="Total Wins" value={wins} icon={Trophy} />
       </div>
 
       {/* Recent Matches */}
@@ -76,9 +108,9 @@ export default function DashboardPage() {
           </Link>
         </div>
         <div className="space-y-3">
-          {recentMatches.length > 0 ? (
-            recentMatches.map((match) => (
-              <MatchCard key={match.id} match={match} compact />
+          {confirmedMatches.length > 0 ? (
+            confirmedMatches.map(match => (
+              <MatchCard key={match.id} match={match} currentUserId={user.id} compact />
             ))
           ) : (
             <div className="rounded-lg bg-secondary/30 p-8 text-center">
@@ -92,7 +124,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Pending Verifications Preview */}
-      {pendingMatches.length > 0 && (
+      {pendingToVerify.length > 0 && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Pending Verifications</h2>
@@ -101,8 +133,8 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {pendingMatches.slice(0, 2).map((match) => (
-              <MatchCard key={match.id} match={match} />
+            {pendingToVerify.slice(0, 2).map(match => (
+              <MatchCard key={match.id} match={match} currentUserId={user.id} />
             ))}
           </div>
         </div>
