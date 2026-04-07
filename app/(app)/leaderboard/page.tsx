@@ -1,5 +1,6 @@
 'use client'
 
+// TODO (Part 7): replace mock-data with GET /api/leaderboard
 import { useState, useMemo } from 'react'
 import { LeaderboardRow } from '@/components/leaderboard-row'
 import { getRankedUsers, getUserRank, currentUser } from '@/lib/mock-data'
@@ -125,7 +126,7 @@ export default function LeaderboardPage() {
               const rank = search
                 ? sortedUsers.findIndex(u => u.id === user.id) + 1
                 : index + 1
-              return <LeaderboardRow key={user.id} user={user} rank={rank} />
+              return <LeaderboardRow key={user.id} user={user} rank={rank} currentUserId={currentUser.id} />
             })
           ) : (
             <div className="py-8 text-center text-muted-foreground">

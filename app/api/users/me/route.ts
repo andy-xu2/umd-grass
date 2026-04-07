@@ -1,3 +1,6 @@
+// GET  /api/users/me  — current user's profile + active-season stats + rank
+// PATCH /api/users/me  — update name and/or avatarUrl (auth required)
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
@@ -30,7 +33,8 @@ export async function GET() {
 
     if (seasonStat) {
       stats = seasonStat
-      // Rank = count of revealed players with higher rr + 1
+
+      // Rank = number of revealed players with a higher rr + 1
       const [{ value }] = await db
         .select({ value: count() })
         .from(seasonStats)

@@ -1,3 +1,8 @@
+// POST /api/users
+// Called once after a user completes TOTP enrollment (verify page).
+// Creates a row in the public `users` table mirroring their Supabase Auth record.
+// Uses onConflictDoNothing so duplicate calls are safe.
+
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'

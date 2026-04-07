@@ -2,7 +2,8 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import * as schema from '@/drizzle/schema'
 
-// Prevent multiple connections in Next.js hot-reload dev environment
+// Reuse the same postgres connection across hot-reloads in Next.js dev mode.
+// In production, each serverless function gets its own fresh connection.
 const globalForDb = globalThis as unknown as { _pgClient?: postgres.Sql }
 
 const client =

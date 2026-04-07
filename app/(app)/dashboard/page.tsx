@@ -1,3 +1,5 @@
+// TODO (Part 5+): replace mock-data imports with real API calls once
+// match submission (Part 6) and leaderboard (Part 7) APIs are wired up.
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { StatCard } from '@/components/stat-card'

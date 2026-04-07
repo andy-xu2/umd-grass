@@ -40,13 +40,11 @@ export default function SubmitMatchPage() {
     setSubmitted(false)
   }
 
-  const handleConfirm = (matchId: string) => {
-    console.log('Confirmed match:', matchId)
-  }
+  // TODO (Part 6): call PATCH /api/matches/[id]/verify with { action: 'confirm' }
+  const handleConfirm = (_matchId: string) => {}
 
-  const handleReject = (matchId: string) => {
-    console.log('Rejected match:', matchId)
-  }
+  // TODO (Part 6): call PATCH /api/matches/[id]/verify with { action: 'reject' }
+  const handleReject = (_matchId: string) => {}
 
   return (
     <div className="space-y-6">

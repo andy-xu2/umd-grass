@@ -1,3 +1,6 @@
+// GET /api/users/[id] — public profile for any user + their active-season stats
+// Used by match cards and player lookup when wiring Parts 6-7.
+
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'

@@ -1,26 +1,28 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { User, getSkillTier, isUnranked, currentUser } from '@/lib/mock-data'
+import { User, getSkillTier, isUnranked } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 
 interface LeaderboardRowProps {
   user: User
   rank: number
+  /** Highlight this row if user.id matches */
+  currentUserId?: string
 }
 
-export function LeaderboardRow({ user, rank }: LeaderboardRowProps) {
+// Maps rank position to the matching podium color scheme
+function getRankDisplay(rank: number) {
+  if (rank === 1) return { bg: 'bg-yellow-500/20', text: 'text-yellow-500' }
+  if (rank === 2) return { bg: 'bg-slate-400/20', text: 'text-slate-400' }
+  if (rank === 3) return { bg: 'bg-amber-600/20', text: 'text-amber-600' }
+  return { bg: 'bg-secondary', text: 'text-muted-foreground' }
+}
+
+export function LeaderboardRow({ user, rank, currentUserId }: LeaderboardRowProps) {
   const tier = getSkillTier(user.rr)
   const unranked = isUnranked(user.gamesPlayed)
-  const isCurrentUser = user.id === currentUser.id
-
-  const getRankDisplay = () => {
-    if (rank === 1) return { bg: 'bg-yellow-500/20', text: 'text-yellow-500', icon: '1st' }
-    if (rank === 2) return { bg: 'bg-slate-400/20', text: 'text-slate-400', icon: '2nd' }
-    if (rank === 3) return { bg: 'bg-amber-600/20', text: 'text-amber-600', icon: '3rd' }
-    return { bg: 'bg-secondary', text: 'text-muted-foreground', icon: `#${rank}` }
-  }
-
-  const rankDisplay = getRankDisplay()
+  const isCurrentUser = user.id === currentUserId
+  const rankDisplay = getRankDisplay(rank)
 
   return (
     <div className={cn(

@@ -1,3 +1,15 @@
+/**
+ * Temporary placeholder data used by pages not yet wired to the real API.
+ * Helper functions (getSkillTier, isUnranked, etc.) will stay — they'll be
+ * imported directly instead of the mock user/match arrays.
+ *
+ * Pages still using this data:
+ *  - dashboard     → wired in Part 6
+ *  - leaderboard   → wired in Part 7
+ *  - submit-match  → wired in Part 6
+ *  - match-card    → wired in Part 6
+ */
+
 export interface User {
   id: string
   username: string
