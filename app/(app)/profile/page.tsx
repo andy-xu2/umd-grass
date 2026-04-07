@@ -1,27 +1,154 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { MatchCard } from '@/components/match-card'
-import { currentUser, getSkillTier, isUnranked, getWinRate, getUserMatches, getUserRank } from '@/lib/mock-data'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, LogOut } from 'lucide-react'
+import { getSkillTier } from '@/lib/mock-data'
+import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase-browser'
+import { toast } from 'sonner'
 import Link from 'next/link'
 
-export default function ProfilePage() {
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const tier = getSkillTier(currentUser.rr)
-  const unranked = isUnranked(currentUser.gamesPlayed)
-  const winRate = getWinRate(currentUser.wins, currentUser.gamesPlayed)
+type UserProfile = {
+  id: string
+  name: string
+  email: string
+  avatarUrl: string | null
+  stats: {
+    rr: number
+    gamesPlayed: number
+    wins: number
+    losses: number
+    isRevealed: boolean
+  } | null
+  rank: number | null
+}
 
-  const userMatches = getUserMatches(currentUser.id)
-  const currentRank = getUserRank(currentUser.id)
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function getWinRate(wins: number, gamesPlayed: number) {
+  if (gamesPlayed === 0) return 0
+  return Math.round((wins / gamesPlayed) * 100)
+}
+
+export default function ProfilePage() {
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  async function fetchProfile() {
+    const res = await fetch('/api/users/me')
+    if (res.ok) {
+      const data = await res.json()
+      setProfile(data)
+      setEditName(data.name)
+    }
+    setLoading(false)
+  }
+
+  async function handleSaveProfile() {
+    if (!profile) return
+    setIsSaving(true)
+    const res = await fetch('/api/users/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setProfile(prev => prev ? { ...prev, name: updated.name } : prev)
+      toast.success('Profile updated')
+      setEditDialogOpen(false)
+    } else {
+      toast.error('Failed to update profile')
+    }
+    setIsSaving(false)
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+
+    setIsUploadingAvatar(true)
+    const supabase = createClient()
+
+    const ext = file.name.split('.').pop()
+    const path = `${profile.id}/avatar.${ext}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true })
+
+    if (uploadError) {
+      toast.error('Failed to upload avatar')
+      setIsUploadingAvatar(false)
+      return
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+
+    const res = await fetch('/api/users/me', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatarUrl: publicUrl }),
+    })
+
+    if (res.ok) {
+      setProfile(prev => prev ? { ...prev, avatarUrl: publicUrl } : prev)
+      toast.success('Avatar updated')
+    } else {
+      toast.error('Failed to save avatar')
+    }
+    setIsUploadingAvatar(false)
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-40 w-full" />
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="py-16 text-center">
+        <p className="text-muted-foreground">Failed to load profile.</p>
+      </div>
+    )
+  }
+
+  const stats = profile.stats
+  const isRevealed = stats?.isRevealed ?? false
+  const rr = isRevealed ? (stats?.rr ?? 800) : 800
+  const gamesPlayed = stats?.gamesPlayed ?? 0
+  const wins = stats?.wins ?? 0
+  const unranked = !isRevealed || gamesPlayed < 5
+  const tier = getSkillTier(rr)
+  const winRate = getWinRate(wins, gamesPlayed)
 
   return (
     <div className="space-y-6">
@@ -40,43 +167,20 @@ export default function ProfilePage() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Profile</DialogTitle>
-              <DialogDescription>
-                Update your profile information
-              </DialogDescription>
+              <DialogDescription>Update your display name</DialogDescription>
             </DialogHeader>
-            <div className="space-y-6 py-4">
-              {/* Avatar Edit */}
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative">
-                  <Avatar className="h-24 w-24 border-2 border-primary/20">
-                    <AvatarFallback className="bg-secondary text-2xl font-semibold">
-                      {currentUser.username.slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <button className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                    <Camera className="h-4 w-4" />
-                  </button>
-                </div>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Display Name</Label>
+                <Input
+                  id="name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
               </div>
-
-              {/* Form Fields */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input id="username" defaultValue={currentUser.username} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" defaultValue={currentUser.email} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">New Password</Label>
-                  <Input id="newPassword" type="password" placeholder="Leave blank to keep current" />
-                </div>
-              </div>
-
               <div className="flex gap-2">
-                <Button className="flex-1" onClick={() => setEditDialogOpen(false)}>
+                <Button className="flex-1" onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Save Changes
                 </Button>
                 <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
@@ -92,14 +196,34 @@ export default function ProfilePage() {
       <Card>
         <CardContent className="p-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <Avatar className="h-24 w-24 border-4 border-primary/20">
-              <AvatarFallback className="bg-secondary text-3xl font-bold">
-                {currentUser.username.slice(0, 2).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative">
+              <Avatar className="h-24 w-24 border-4 border-primary/20">
+                {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt={profile.name} />}
+                <AvatarFallback className="bg-secondary text-3xl font-bold">
+                  {getInitials(profile.name)}
+                </AvatarFallback>
+              </Avatar>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {isUploadingAvatar
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Camera className="h-4 w-4" />
+                }
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarUpload}
+              />
+            </div>
             <div className="flex-1 text-center sm:text-left">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
-                <h2 className="text-2xl font-bold">{currentUser.username}</h2>
+                <h2 className="text-2xl font-bold">{profile.name}</h2>
                 {unranked ? (
                   <Badge variant="secondary">Unranked</Badge>
                 ) : (
@@ -108,14 +232,18 @@ export default function ProfilePage() {
                   </Badge>
                 )}
               </div>
-              <p className="mt-1 text-muted-foreground">{currentUser.email}</p>
+              <p className="mt-1 text-muted-foreground">{profile.email}</p>
               <div className="mt-4 flex justify-center gap-6 sm:justify-start">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-primary">{currentUser.rr}</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {unranked ? '—' : rr}
+                  </p>
                   <p className="text-xs text-muted-foreground">RR</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold">#{currentRank}</p>
+                  <p className="text-2xl font-bold">
+                    {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
+                  </p>
                   <p className="text-xs text-muted-foreground">Rank</p>
                 </div>
                 <div className="text-center">
@@ -136,7 +264,9 @@ export default function ProfilePage() {
               <Trophy className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">#{currentRank}</p>
+              <p className="text-2xl font-bold">
+                {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
+              </p>
               <p className="text-xs text-muted-foreground">Global Rank</p>
             </div>
           </CardContent>
@@ -147,7 +277,7 @@ export default function ProfilePage() {
               <Gamepad2 className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{currentUser.gamesPlayed}</p>
+              <p className="text-2xl font-bold">{gamesPlayed}</p>
               <p className="text-xs text-muted-foreground">Games Played</p>
             </div>
           </CardContent>
@@ -158,7 +288,7 @@ export default function ProfilePage() {
               <Target className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{currentUser.wins}</p>
+              <p className="text-2xl font-bold">{wins}</p>
               <p className="text-xs text-muted-foreground">Total Wins</p>
             </div>
           </CardContent>
@@ -169,44 +299,26 @@ export default function ProfilePage() {
               <TrendingUp className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{currentUser.rr}</p>
+              <p className="text-2xl font-bold">{unranked ? '—' : rr}</p>
               <p className="text-xs text-muted-foreground">Current RR</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Match History */}
+      {/* Match History — wired in Part 6 */}
       <Card>
         <CardHeader>
           <CardTitle>Match History</CardTitle>
           <CardDescription>All your recorded matches</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {userMatches.length > 0 ? (
-            userMatches.map(match => (
-              <MatchCard key={match.id} match={match} />
-            ))
-          ) : (
-            <div className="py-8 text-center">
-              <p className="text-muted-foreground">No matches played yet</p>
-              <Link href="/submit-match">
-                <Button className="mt-4">Submit your first match</Button>
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Sign Out */}
-      <Card className="border-destructive/30">
-        <CardContent className="p-4">
-          <Link href="/login">
-            <Button variant="outline" className="w-full gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground">
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
-          </Link>
+        <CardContent>
+          <div className="py-8 text-center">
+            <p className="text-muted-foreground">No matches played yet</p>
+            <Link href="/submit-match">
+              <Button className="mt-4">Submit your first match</Button>
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
