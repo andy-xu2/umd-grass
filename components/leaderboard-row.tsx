@@ -1,16 +1,15 @@
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { User, getSkillTier, isUnranked } from '@/lib/mock-data'
+import { getSkillTier } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
+import type { LeaderboardEntry } from '@/lib/types'
 
 interface LeaderboardRowProps {
-  user: User
-  rank: number
-  /** Highlight this row if user.id matches */
+  entry: LeaderboardEntry
+  /** Highlight this row when entry.userId matches */
   currentUserId?: string
 }
 
-// Maps rank position to the matching podium color scheme
 function getRankDisplay(rank: number) {
   if (rank === 1) return { bg: 'bg-yellow-500/20', text: 'text-yellow-500' }
   if (rank === 2) return { bg: 'bg-slate-400/20', text: 'text-slate-400' }
@@ -18,11 +17,11 @@ function getRankDisplay(rank: number) {
   return { bg: 'bg-secondary', text: 'text-muted-foreground' }
 }
 
-export function LeaderboardRow({ user, rank, currentUserId }: LeaderboardRowProps) {
-  const tier = getSkillTier(user.rr)
-  const unranked = isUnranked(user.gamesPlayed)
-  const isCurrentUser = user.id === currentUserId
-  const rankDisplay = getRankDisplay(rank)
+export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
+  const tier = getSkillTier(entry.rr)
+  const unranked = !entry.isRevealed
+  const isCurrentUser = entry.userId === currentUserId
+  const rankDisplay = entry.rank != null ? getRankDisplay(entry.rank) : { bg: 'bg-secondary', text: 'text-muted-foreground' }
 
   return (
     <div className={cn(
@@ -34,19 +33,20 @@ export function LeaderboardRow({ user, rank, currentUserId }: LeaderboardRowProp
         rankDisplay.bg,
         rankDisplay.text
       )}>
-        {rank <= 3 ? rank : `#${rank}`}
+        {entry.rank == null ? '—' : entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
       </div>
 
       <Avatar className="h-10 w-10 border border-border">
+        {entry.avatarUrl && <AvatarImage src={entry.avatarUrl} alt={entry.name} />}
         <AvatarFallback className="bg-secondary text-sm">
-          {user.username.slice(0, 2).toUpperCase()}
+          {entry.name.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className={cn('font-semibold', isCurrentUser && 'text-primary')}>
-            {user.username}
+            {entry.name}
           </span>
           {isCurrentUser && (
             <Badge variant="outline" className="text-[10px] py-0 border-primary text-primary">
@@ -61,14 +61,20 @@ export function LeaderboardRow({ user, rank, currentUserId }: LeaderboardRowProp
             <span className={cn('text-xs font-medium', tier.color)}>{tier.name}</span>
           )}
           <span className="text-xs text-muted-foreground">
-            {user.gamesPlayed} games
+            {entry.gamesPlayed} games
           </span>
         </div>
       </div>
 
       <div className="text-right">
-        <p className="text-xl font-bold text-primary">{user.rr}</p>
-        <p className="text-xs text-muted-foreground">RR</p>
+        {unranked ? (
+          <p className="text-sm text-muted-foreground">Hidden</p>
+        ) : (
+          <>
+            <p className="text-xl font-bold text-primary">{entry.rr}</p>
+            <p className="text-xs text-muted-foreground">RR</p>
+          </>
+        )}
       </div>
     </div>
   )

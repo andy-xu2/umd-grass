@@ -140,11 +140,10 @@ export const TIER_STYLES: Record<string, string> = {
 
 export function getSkillTier(rr: number): { name: string; color: string } {
   if (rr >= 2000) return { name: 'Diamond', color: TIER_STYLES.Diamond }
-  if (rr >= 1800) return { name: 'Platinum', color: TIER_STYLES.Platinum }
-  if (rr >= 1600) return { name: 'Gold', color: TIER_STYLES.Gold }
-  if (rr >= 1400) return { name: 'Silver', color: TIER_STYLES.Silver }
-  if (rr >= 1200) return { name: 'Bronze', color: TIER_STYLES.Bronze }
-  return { name: 'Unranked', color: TIER_STYLES.Unranked }
+  if (rr >= 1500) return { name: 'Platinum', color: TIER_STYLES.Platinum }
+  if (rr >= 1000) return { name: 'Gold', color: TIER_STYLES.Gold }
+  if (rr >= 500) return { name: 'Silver', color: TIER_STYLES.Silver }
+  return { name: 'Bronze', color: TIER_STYLES.Bronze }
 }
 
 export function isUnranked(gamesPlayed: number): boolean {

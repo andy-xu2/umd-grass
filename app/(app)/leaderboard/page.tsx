@@ -1,26 +1,53 @@
 'use client'
 
-// TODO (Part 7): replace mock-data with GET /api/leaderboard
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { LeaderboardRow } from '@/components/leaderboard-row'
-import { getRankedUsers, getUserRank, currentUser } from '@/lib/mock-data'
 import { Input } from '@/components/ui/input'
 import { Search, Trophy } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
+
+interface MeResponse {
+  id: string
+  name: string
+  stats: { rr: number; isRevealed: boolean } | null
+  rank: number | null
+}
 
 export default function LeaderboardPage() {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([])
+  const [me, setMe] = useState<MeResponse | null>(null)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  const sortedUsers = useMemo(() => getRankedUsers(), [])
+  useEffect(() => {
+    async function load() {
+      const [lbRes, meRes] = await Promise.all([
+        fetch('/api/leaderboard'),
+        fetch('/api/users/me'),
+      ])
 
-  const filteredUsers = useMemo(() => {
-    if (!search.trim()) return sortedUsers
-    return sortedUsers.filter(user =>
-      user.username.toLowerCase().includes(search.toLowerCase())
+      if (lbRes.ok) {
+        const data: LeaderboardResponse = await lbRes.json()
+        setEntries(data.entries)
+      }
+      if (meRes.ok) {
+        setMe(await meRes.json())
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const filteredEntries = useMemo(() => {
+    if (!search.trim()) return entries
+    return entries.filter(e =>
+      e.name.toLowerCase().includes(search.toLowerCase())
     )
-  }, [sortedUsers, search])
+  }, [entries, search])
 
-  const currentUserRank = getUserRank(currentUser.id)
+  const top3 = entries.slice(0, 3)
 
   return (
     <div className="space-y-6">
@@ -39,12 +66,24 @@ export default function LeaderboardPage() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Your Rank</p>
-              <p className="text-2xl font-bold">#{currentUserRank}</p>
+              {loading ? (
+                <Skeleton className="h-8 w-12 mt-1" />
+              ) : (
+                <p className="text-2xl font-bold">
+                  {me?.rank != null ? `#${me.rank}` : '—'}
+                </p>
+              )}
             </div>
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Current RR</p>
-            <p className="text-2xl font-bold text-primary">{currentUser.rr}</p>
+            {loading ? (
+              <Skeleton className="h-8 w-16 mt-1 ml-auto" />
+            ) : (
+              <p className="text-2xl font-bold text-primary">
+                {me?.stats?.isRevealed ? me.stats.rr : '—'}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -61,55 +100,57 @@ export default function LeaderboardPage() {
       </div>
 
       {/* Top 3 Podium */}
-      {!search && (
+      {!search && !loading && top3.length >= 2 && (
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {/* 2nd Place */}
           <div className="order-1 flex flex-col items-center">
             <div className="mb-2 flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full border-2 border-slate-400 bg-secondary">
               <span className="text-lg sm:text-2xl font-bold text-slate-400">
-                {sortedUsers[1]?.username.slice(0, 2).toUpperCase()}
+                {top3[1]?.name.slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div className="flex h-16 sm:h-20 w-full items-end justify-center rounded-t-lg bg-slate-400/20">
               <span className="pb-2 text-2xl sm:text-3xl font-bold text-slate-400">2</span>
             </div>
             <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
-              {sortedUsers[1]?.username}
+              {top3[1]?.name}
             </p>
-            <p className="text-xs text-muted-foreground">{sortedUsers[1]?.rr} RR</p>
+            <p className="text-xs text-muted-foreground">{top3[1]?.rr} RR</p>
           </div>
 
           {/* 1st Place */}
           <div className="order-0 sm:order-1 flex flex-col items-center">
             <div className="mb-2 flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-full border-2 border-yellow-500 bg-secondary">
               <span className="text-xl sm:text-3xl font-bold text-yellow-500">
-                {sortedUsers[0]?.username.slice(0, 2).toUpperCase()}
+                {top3[0]?.name.slice(0, 2).toUpperCase()}
               </span>
             </div>
             <div className="flex h-20 sm:h-24 w-full items-end justify-center rounded-t-lg bg-yellow-500/20">
               <span className="pb-2 text-3xl sm:text-4xl font-bold text-yellow-500">1</span>
             </div>
             <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
-              {sortedUsers[0]?.username}
+              {top3[0]?.name}
             </p>
-            <p className="text-xs text-muted-foreground">{sortedUsers[0]?.rr} RR</p>
+            <p className="text-xs text-muted-foreground">{top3[0]?.rr} RR</p>
           </div>
 
           {/* 3rd Place */}
-          <div className="order-2 flex flex-col items-center">
-            <div className="mb-2 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 border-amber-600 bg-secondary">
-              <span className="text-base sm:text-xl font-bold text-amber-600">
-                {sortedUsers[2]?.username.slice(0, 2).toUpperCase()}
-              </span>
+          {top3.length >= 3 && (
+            <div className="order-2 flex flex-col items-center">
+              <div className="mb-2 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 border-amber-600 bg-secondary">
+                <span className="text-base sm:text-xl font-bold text-amber-600">
+                  {top3[2]?.name.slice(0, 2).toUpperCase()}
+                </span>
+              </div>
+              <div className="flex h-12 sm:h-16 w-full items-end justify-center rounded-t-lg bg-amber-600/20">
+                <span className="pb-2 text-xl sm:text-2xl font-bold text-amber-600">3</span>
+              </div>
+              <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
+                {top3[2]?.name}
+              </p>
+              <p className="text-xs text-muted-foreground">{top3[2]?.rr} RR</p>
             </div>
-            <div className="flex h-12 sm:h-16 w-full items-end justify-center rounded-t-lg bg-amber-600/20">
-              <span className="pb-2 text-xl sm:text-2xl font-bold text-amber-600">3</span>
-            </div>
-            <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
-              {sortedUsers[2]?.username}
-            </p>
-            <p className="text-xs text-muted-foreground">{sortedUsers[2]?.rr} RR</p>
-          </div>
+          )}
         </div>
       )}
 
@@ -117,20 +158,27 @@ export default function LeaderboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {search ? `Search Results (${filteredUsers.length})` : 'All Rankings'}
+            {search ? `Search Results (${filteredEntries.length})` : 'All Rankings'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-4 pt-0">
-          {filteredUsers.length > 0 ? (
-            filteredUsers.map((user, index) => {
-              const rank = search
-                ? sortedUsers.findIndex(u => u.id === user.id) + 1
-                : index + 1
-              return <LeaderboardRow key={user.id} user={user} rank={rank} currentUserId={currentUser.id} />
-            })
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-[72px] w-full rounded-lg" />
+            ))
+          ) : filteredEntries.length > 0 ? (
+            filteredEntries.map(entry => (
+              <LeaderboardRow
+                key={entry.userId}
+                entry={entry}
+                currentUserId={me?.id}
+              />
+            ))
           ) : (
             <div className="py-8 text-center text-muted-foreground">
-              No players found matching &quot;{search}&quot;
+              {entries.length === 0
+                ? 'No players on the leaderboard yet.'
+                : `No players found matching "${search}"`}
             </div>
           )}
         </CardContent>

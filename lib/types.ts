@@ -43,3 +43,20 @@ export interface UserWithStats {
   createdAt: string
   stats: SeasonStatsShape | null
 }
+
+export interface LeaderboardEntry {
+  rank: number | null   // null when isRevealed = false (< 5 games)
+  userId: string
+  name: string
+  avatarUrl: string | null
+  rr: number
+  gamesPlayed: number
+  wins: number
+  losses: number
+  isRevealed: boolean
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[]
+  seasonId: string | null
+}
