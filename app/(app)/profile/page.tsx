@@ -3,15 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { getSkillTier } from '@/lib/mock-data'
-import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
+import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { SeasonSelector } from '@/components/season-selector'
@@ -33,7 +30,6 @@ type UserProfile = {
   rank: number | null
 }
 
-
 function getWinRate(wins: number, gamesPlayed: number) {
   if (gamesPlayed === 0) return 0
   return Math.round((wins / gamesPlayed) * 100)
@@ -43,9 +39,6 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [seasonId, setSeasonId] = useState<string | null>(null)
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -56,44 +49,18 @@ export default function ProfilePage() {
     if (res.ok) {
       const data = await res.json()
       setProfile(data)
-      setEditName(data.name)
     }
     setLoading(false)
   }, [])
 
-  // Initial load — no seasonId needed, API defaults to active season
   useEffect(() => {
     fetchProfile()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-fetch when user picks a different season
   useEffect(() => {
     if (seasonId) fetchProfile(seasonId)
   }, [seasonId, fetchProfile])
-
-  async function handleSaveProfile() {
-    if (!profile) return
-    setIsSaving(true)
-    const res = await fetch('/api/users/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editName }),
-    })
-    if (res.ok) {
-      const updated = await res.json()
-      setProfile(prev => prev ? { ...prev, name: updated.name } : prev)
-      toast.success('Profile updated')
-      setEditDialogOpen(false)
-    } else {
-      toast.error('Failed to update profile')
-    }
-    setIsSaving(false)
-  }
-
-  function handleSeasonChange(sid: string) {
-    setSeasonId(sid)
-  }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -169,47 +136,13 @@ export default function ProfilePage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Profile</h1>
-          <p className="text-sm text-muted-foreground">Manage your account and view stats</p>
+          <p className="text-sm text-muted-foreground">Your stats and match history</p>
         </div>
-        <div className="flex items-center gap-2">
-          <SeasonSelector
-            value={seasonId}
-            onChange={handleSeasonChange}
-            className="w-44"
-          />
-          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="icon">
-              <Settings className="h-4 w-4" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Profile</DialogTitle>
-              <DialogDescription>Update your display name</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Display Name</Label>
-                <Input
-                  id="name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handleSaveProfile} disabled={isSaving}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Save Changes
-                </Button>
-                <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-        </div>
+        <SeasonSelector
+          value={seasonId}
+          onChange={setSeasonId}
+          className="w-44"
+        />
       </div>
 
       {/* Profile Card */}
@@ -326,7 +259,7 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {/* Match History — wired in Part 6 */}
+      {/* Match History */}
       <Card>
         <CardHeader>
           <CardTitle>Match History</CardTitle>
