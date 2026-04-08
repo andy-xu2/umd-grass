@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getSkillTier, getWinRate } from '@/lib/mock-data'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 
 export interface PlayerCardUser {
   id: string
@@ -34,7 +34,7 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
           <Avatar className="h-16 w-16 border-2 border-primary/20">
             {user.avatarUrl && <AvatarImage src={user.avatarUrl} alt={user.name} />}
             <AvatarFallback className="bg-secondary text-lg font-semibold">
-              {user.name.slice(0, 2).toUpperCase()}
+              {getInitials(user.name)}
             </AvatarFallback>
           </Avatar>
           <div className="flex-1">

@@ -5,6 +5,7 @@ import { LeaderboardRow } from '@/components/leaderboard-row'
 import { SeasonSelector } from '@/components/season-selector'
 import { Input } from '@/components/ui/input'
 import { Search, Trophy } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
@@ -125,7 +126,7 @@ export default function LeaderboardPage() {
           <div className="order-1 flex flex-col items-center">
             <div className="mb-2 flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full border-2 border-slate-400 bg-secondary">
               <span className="text-lg sm:text-2xl font-bold text-slate-400">
-                {top3[1]?.name.slice(0, 2).toUpperCase()}
+                {top3[1] ? getInitials(top3[1].name) : ''}
               </span>
             </div>
             <div className="flex h-16 sm:h-20 w-full items-end justify-center rounded-t-lg bg-slate-400/20">
@@ -141,7 +142,7 @@ export default function LeaderboardPage() {
           <div className="order-0 sm:order-1 flex flex-col items-center">
             <div className="mb-2 flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-full border-2 border-yellow-500 bg-secondary">
               <span className="text-xl sm:text-3xl font-bold text-yellow-500">
-                {top3[0]?.name.slice(0, 2).toUpperCase()}
+                {top3[0] ? getInitials(top3[0].name) : ''}
               </span>
             </div>
             <div className="flex h-20 sm:h-24 w-full items-end justify-center rounded-t-lg bg-yellow-500/20">
@@ -158,7 +159,7 @@ export default function LeaderboardPage() {
             <div className="order-2 flex flex-col items-center">
               <div className="mb-2 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 border-amber-600 bg-secondary">
                 <span className="text-base sm:text-xl font-bold text-amber-600">
-                  {top3[2]?.name.slice(0, 2).toUpperCase()}
+                  {top3[2] ? getInitials(top3[2].name) : ''}
                 </span>
               </div>
               <div className="flex h-12 sm:h-16 w-full items-end justify-center rounded-t-lg bg-amber-600/20">

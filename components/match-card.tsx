@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import { ArrowUp, ArrowDown, Clock } from 'lucide-react'
 import type { MatchResponse } from '@/lib/types'
 
@@ -123,7 +123,7 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
               {[match.team1Player1, match.team1Player2].map(p => (
                 <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
                   <AvatarFallback className="bg-secondary text-xs">
-                    {p.name.slice(0, 2).toUpperCase()}
+                    {getInitials(p.name)}
                   </AvatarFallback>
                 </Avatar>
               ))}
@@ -155,7 +155,7 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
               {[match.team2Player1, match.team2Player2].map(p => (
                 <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
                   <AvatarFallback className="bg-secondary text-xs">
-                    {p.name.slice(0, 2).toUpperCase()}
+                    {getInitials(p.name)}
                   </AvatarFallback>
                 </Avatar>
               ))}

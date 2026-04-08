@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { getSkillTier } from '@/lib/mock-data'
-import { cn } from '@/lib/utils'
+import { cn, getInitials } from '@/lib/utils'
 import type { LeaderboardEntry } from '@/lib/types'
 
 interface LeaderboardRowProps {
@@ -39,7 +39,7 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
       <Avatar className="h-10 w-10 border border-border">
         {entry.avatarUrl && <AvatarImage src={entry.avatarUrl} alt={entry.name} />}
         <AvatarFallback className="bg-secondary text-sm">
-          {entry.name.slice(0, 2).toUpperCase()}
+          {getInitials(entry.name)}
         </AvatarFallback>
       </Avatar>
 

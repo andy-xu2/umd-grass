@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Check, X, Clock } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import type { MatchResponse } from '@/lib/types'
 
 interface VerificationCardProps {
@@ -44,7 +45,7 @@ export function VerificationCard({ match, onConfirm, onReject }: VerificationCar
               {[match.team1Player1, match.team1Player2].map(p => (
                 <Avatar key={p.id} className="h-8 w-8 border-2 border-background">
                   <AvatarFallback className="bg-secondary text-xs">
-                    {p.name.slice(0, 2).toUpperCase()}
+                    {getInitials(p.name)}
                   </AvatarFallback>
                 </Avatar>
               ))}
@@ -68,7 +69,7 @@ export function VerificationCard({ match, onConfirm, onReject }: VerificationCar
               {[match.team2Player1, match.team2Player2].map(p => (
                 <Avatar key={p.id} className="h-8 w-8 border-2 border-background">
                   <AvatarFallback className="bg-secondary text-xs">
-                    {p.name.slice(0, 2).toUpperCase()}
+                    {getInitials(p.name)}
                   </AvatarFallback>
                 </Avatar>
               ))}

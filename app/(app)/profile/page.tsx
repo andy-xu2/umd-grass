@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { getSkillTier } from '@/lib/mock-data'
 import { Settings, Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
+import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
@@ -32,9 +33,6 @@ type UserProfile = {
   rank: number | null
 }
 
-function getInitials(name: string) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-}
 
 function getWinRate(wins: number, gamesPlayed: number) {
   if (gamesPlayed === 0) return 0
