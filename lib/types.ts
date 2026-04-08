@@ -1,5 +1,10 @@
 export type MatchStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED' | 'EXPIRED'
 
+export interface SetScore {
+  team1: number
+  team2: number
+}
+
 export interface Season {
   id: string
   name: string
@@ -22,6 +27,7 @@ export interface MatchResponse {
   team1Player2: PlayerInfo
   team2Player1: PlayerInfo
   team2Player2: PlayerInfo
+  setScores: SetScore[] | null
   team1Sets: number
   team2Sets: number
   status: MatchStatus

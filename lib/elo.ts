@@ -10,24 +10,44 @@ export function expectedScore(playerRR: number, oppRR1: number, oppRR2: number):
 }
 
 /**
- * Margin-of-victory multipliers applied on top of the base ELO delta.
+ * Margin-of-victory multiplier combining set differential and point differential.
  *
- * setMargin = winnerSets - loserSets (always positive, from the winner's perspective)
+ * setMargin  = winnerSets − loserSets (always positive, from winner's perspective)
+ * pointDiff  = winner's total points − loser's total points across all sets (always positive)
  *
- * Close game (margin = 1, e.g. 2-1):
- *   - Winner gains the normal amount  (×1.0)
- *   - Loser loses less                (×0.75)
+ * Base multiplier from sets:
+ *   - setMargin ≥ 2 (sweep) → 1.2 for both winner and loser
+ *   - setMargin = 1 (close)  → winner ×1.0, loser ×0.75
  *
- * Blowout (margin ≥ 2, e.g. 2-0):
- *   - Winner gains more               (×1.2)
- *   - Loser loses more                (×1.2)
+ * Point differential adds up to +0.1 to the multiplier for both sides:
+ *   - Normalised against 20 points as a "significant" gap
+ *   - A lopsided point total amplifies the result: winners gain more, losers lose more
  *
  * If setMargin is not provided the multiplier is 1.0 for both sides.
  */
-export function marginMultiplier(won: boolean, setMargin: number | undefined): number {
+export function marginMultiplier(
+  won: boolean,
+  setMargin: number | undefined,
+  pointDiff?: number,
+): number {
   if (setMargin === undefined) return 1.0
-  if (setMargin >= 2) return 1.2          // blowout — both sides amplified
-  return won ? 1.0 : 0.75                 // close game — winner normal, loser softened
+
+  let multiplier: number
+  if (setMargin >= 2) {
+    multiplier = 1.2
+  } else {
+    multiplier = won ? 1.0 : 0.75
+  }
+
+  if (pointDiff !== undefined) {
+    // Normalize point diff: 20-point gap = full 0.1 adjustment.
+    // A lopsided point total always increases the multiplier for both sides:
+    // winners gain a bit more and losers lose a bit more (less softening).
+    const pointAdj = Math.min(Math.abs(pointDiff) / 20, 1) * 0.1
+    multiplier += pointAdj
+  }
+
+  return Math.round(multiplier * 1000) / 1000
 }
 
 /**
@@ -37,7 +57,8 @@ export function marginMultiplier(won: boolean, setMargin: number | undefined): n
  * @param oppRR1     - First opponent's current RR
  * @param oppRR2     - Second opponent's current RR
  * @param won        - Whether the player's team won
- * @param setMargin  - (optional) winnerSets − loserSets; enables margin-of-victory scaling
+ * @param setMargin  - (optional) winnerSets − loserSets; enables set-margin scaling
+ * @param pointDiff  - (optional) winner total points − loser total points; adds fine-grained scaling
  * @returns          - Signed integer RR delta (positive = gain, negative = loss)
  */
 export function calculateRrChange(
@@ -46,9 +67,10 @@ export function calculateRrChange(
   oppRR2: number,
   won: boolean,
   setMargin?: number,
+  pointDiff?: number,
 ): number {
   const actual = won ? 1 : 0
   const expected = expectedScore(playerRR, oppRR1, oppRR2)
   const base = K * (actual - expected)
-  return Math.round(base * marginMultiplier(won, setMargin))
+  return Math.round(base * marginMultiplier(won, setMargin, pointDiff))
 }

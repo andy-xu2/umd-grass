@@ -98,10 +98,19 @@ export async function PATCH(
     const team1Won = match.team1Sets > match.team2Sets
     const setMargin = Math.abs(match.team1Sets - match.team2Sets)
 
-    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin)
-    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin)
-    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin)
-    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin)
+    // Compute point differential from per-set scores (winner minus loser)
+    let pointDiff: number | undefined
+    if (match.setScores && Array.isArray(match.setScores)) {
+      const sets = match.setScores as Array<{ team1: number; team2: number }>
+      const team1Total = sets.reduce((s, r) => s + r.team1, 0)
+      const team2Total = sets.reduce((s, r) => s + r.team2, 0)
+      pointDiff = Math.abs(team1Total - team2Total)
+    }
+
+    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin, pointDiff)
+    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin, pointDiff)
+    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin, pointDiff)
+    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin, pointDiff)
 
     const now = new Date()
 

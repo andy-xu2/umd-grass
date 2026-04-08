@@ -6,7 +6,10 @@ import {
   integer,
   boolean,
   timestamp,
+  jsonb,
 } from 'drizzle-orm/pg-core'
+
+export type SetScore = { team1: number; team2: number }
 
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
@@ -76,7 +79,10 @@ export const matches = pgTable('matches', {
   team2Player1Id: uuid('team2_player1_id').notNull().references(() => users.id),
   team2Player2Id: uuid('team2_player2_id').notNull().references(() => users.id),
 
-  // Score — sets won by each team (e.g. 2-1 in a best-of-3)
+  // Per-set point scores, e.g. [{team1: 21, team2: 15}, {team1: 18, team2: 21}]
+  setScores: jsonb('set_scores').$type<SetScore[]>(),
+
+  // Derived: sets won by each team (computed from setScores on submission)
   team1Sets: integer('team1_sets').notNull(),
   team2Sets: integer('team2_sets').notNull(),
 

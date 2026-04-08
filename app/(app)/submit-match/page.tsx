@@ -7,11 +7,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Badge } from '@/components/ui/badge'
 import { VerificationCard } from '@/components/verification-card'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
-import { Loader2, CheckCircle, PlusCircle, Clock } from 'lucide-react'
-import type { UserWithStats, MatchResponse } from '@/lib/types'
+import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import type { UserWithStats, MatchResponse, SetScore } from '@/lib/types'
+
+const emptySet = (): SetScore => ({ team1: 0, team2: 0 })
 
 export default function SubmitMatchPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -22,8 +26,7 @@ export default function SubmitMatchPage() {
   const [teammate, setTeammate] = useState('')
   const [opponent1, setOpponent1] = useState('')
   const [opponent2, setOpponent2] = useState('')
-  const [yourScore, setYourScore] = useState('')
-  const [opponentScore, setOpponentScore] = useState('')
+  const [sets, setSets] = useState<SetScore[]>([emptySet()])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -54,18 +57,39 @@ export default function SubmitMatchPage() {
       (m.team2Player1.id === currentUserId || m.team2Player2.id === currentUserId),
   )
 
+  // Derived scoring state
+  const team1SetsWon = sets.filter(s => s.team1 > s.team2).length
+  const team2SetsWon = sets.filter(s => s.team2 > s.team1).length
+  const hasTiedSet = sets.some(s => s.team1 === s.team2 && (s.team1 > 0 || s.team2 > 0))
+  const overallTied = team1SetsWon === team2SetsWon && (team1SetsWon > 0 || team2SetsWon > 0)
+  const allSetsValid = sets.every(s => s.team1 !== s.team2 || (s.team1 === 0 && s.team2 === 0))
+
+  const updateSet = (index: number, field: 'team1' | 'team2', raw: string) => {
+    const value = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0)
+    setSets(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
+  }
+
+  const addSet = () => setSets(prev => [...prev, emptySet()])
+
+  const removeSet = (index: number) => {
+    if (sets.length <= 1) return
+    setSets(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     setSubmitError(null)
 
-    const team1Sets = parseInt(yourScore, 10)
-    const team2Sets = parseInt(opponentScore, 10)
-
     const res = await fetch('/api/matches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teammateId: teammate, opponent1Id: opponent1, opponent2Id: opponent2, team1Sets, team2Sets }),
+      body: JSON.stringify({
+        teammateId: teammate,
+        opponent1Id: opponent1,
+        opponent2Id: opponent2,
+        sets,
+      }),
     })
 
     setIsSubmitting(false)
@@ -84,8 +108,7 @@ export default function SubmitMatchPage() {
     setTeammate('')
     setOpponent1('')
     setOpponent2('')
-    setYourScore('')
-    setOpponentScore('')
+    setSets([emptySet()])
     setSubmitted(false)
     setSubmitError(null)
   }
@@ -107,6 +130,18 @@ export default function SubmitMatchPage() {
     if (!u.stats.isRevealed) return 'Unranked'
     return `${u.stats.rr} RR`
   }
+
+  const canSubmit =
+    !!teammate &&
+    !!opponent1 &&
+    !!opponent2 &&
+    sets.length > 0 &&
+    allSetsValid &&
+    !hasTiedSet &&
+    !overallTied &&
+    team1SetsWon !== team2SetsWon &&
+    (team1SetsWon > 0 || team2SetsWon > 0) &&
+    !isSubmitting
 
   return (
     <div className="space-y-6">
@@ -241,56 +276,134 @@ export default function SubmitMatchPage() {
                     </div>
                   </div>
 
-                  {/* Score */}
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">Score</h3>
-                    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
-                      <div className="space-y-2">
-                        <Label>Your Team (sets)</Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          min="0"
-                          max="9"
-                          value={yourScore}
-                          onChange={e => setYourScore(e.target.value)}
-                          className="text-center text-lg"
-                          required
-                        />
-                      </div>
-                      <span className="mt-6 text-muted-foreground">vs</span>
-                      <div className="space-y-2">
-                        <Label>Opponents (sets)</Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          min="0"
-                          max="9"
-                          value={opponentScore}
-                          onChange={e => setOpponentScore(e.target.value)}
-                          className="text-center text-lg"
-                          required
-                        />
-                      </div>
+                  {/* Sets */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-medium text-muted-foreground">Sets</h3>
+                      {(team1SetsWon > 0 || team2SetsWon > 0) && (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'text-xs',
+                            team1SetsWon > team2SetsWon
+                              ? 'bg-primary/20 text-primary border-0'
+                              : team2SetsWon > team1SetsWon
+                              ? 'bg-destructive/20 text-destructive border-0'
+                              : 'bg-secondary',
+                          )}
+                        >
+                          {team1SetsWon > team2SetsWon
+                            ? `Your team leads ${team1SetsWon}–${team2SetsWon}`
+                            : team2SetsWon > team1SetsWon
+                            ? `Opponents lead ${team2SetsWon}–${team1SetsWon}`
+                            : `Tied ${team1SetsWon}–${team2SetsWon}`}
+                        </Badge>
+                      )}
                     </div>
-                    {yourScore && opponentScore && yourScore === opponentScore && (
-                      <p className="text-xs text-destructive">Score cannot be a tie.</p>
+
+                    {/* Column headers */}
+                    <div className="grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-2 px-1">
+                      <span className="w-12 text-center text-xs text-muted-foreground" />
+                      <span className="text-center text-xs font-medium text-muted-foreground">Your Team</span>
+                      <span className="text-center text-xs text-muted-foreground">vs</span>
+                      <span className="text-center text-xs font-medium text-muted-foreground">Opponents</span>
+                      <span className="w-8" />
+                    </div>
+
+                    <div className="space-y-2">
+                      {sets.map((set, i) => {
+                        const setWinner =
+                          set.team1 > set.team2
+                            ? 'team1'
+                            : set.team2 > set.team1
+                            ? 'team2'
+                            : null
+                        const isTied = set.team1 === set.team2 && (set.team1 > 0 || set.team2 > 0)
+
+                        return (
+                          <div
+                            key={i}
+                            className={cn(
+                              'grid grid-cols-[auto_1fr_auto_1fr_auto] items-center gap-2 rounded-lg px-3 py-2',
+                              isTied
+                                ? 'bg-destructive/10'
+                                : 'bg-secondary/20',
+                            )}
+                          >
+                            {/* Set label + winner indicator */}
+                            <div className="flex w-12 flex-col items-center gap-0.5">
+                              <span className="text-xs text-muted-foreground">Set {i + 1}</span>
+                              {setWinner && (
+                                <Trophy
+                                  className={cn(
+                                    'h-3 w-3',
+                                    setWinner === 'team1' ? 'text-primary' : 'text-orange-500',
+                                  )}
+                                />
+                              )}
+                            </div>
+
+                            <Input
+                              type="number"
+                              min="0"
+                              value={set.team1 === 0 ? '' : set.team1}
+                              placeholder="0"
+                              onChange={e => updateSet(i, 'team1', e.target.value)}
+                              className={cn(
+                                'text-center text-base font-semibold',
+                                setWinner === 'team1' && 'border-primary ring-1 ring-primary/30',
+                              )}
+                            />
+
+                            <span className="text-center text-sm text-muted-foreground">–</span>
+
+                            <Input
+                              type="number"
+                              min="0"
+                              value={set.team2 === 0 ? '' : set.team2}
+                              placeholder="0"
+                              onChange={e => updateSet(i, 'team2', e.target.value)}
+                              className={cn(
+                                'text-center text-base font-semibold',
+                                setWinner === 'team2' && 'border-orange-500 ring-1 ring-orange-500/30',
+                              )}
+                            />
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeSet(i)}
+                              disabled={sets.length === 1}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full gap-2"
+                      onClick={addSet}
+                    >
+                      <PlusCircle className="h-4 w-4" />
+                      Add Set
+                    </Button>
+
+                    {hasTiedSet && (
+                      <p className="text-xs text-destructive">Each set must have a clear winner (no ties).</p>
+                    )}
+                    {overallTied && !hasTiedSet && (
+                      <p className="text-xs text-destructive">The overall match cannot be tied.</p>
                     )}
                   </div>
 
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={
-                      !teammate ||
-                      !opponent1 ||
-                      !opponent2 ||
-                      !yourScore ||
-                      !opponentScore ||
-                      yourScore === opponentScore ||
-                      isSubmitting
-                    }
-                  >
+                  <Button type="submit" className="w-full" disabled={!canSubmit}>
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

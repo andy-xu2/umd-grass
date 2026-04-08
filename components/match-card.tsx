@@ -54,7 +54,12 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           <div className="flex flex-col">
             <span className="text-sm font-medium">vs {opponents}</span>
             <span className="text-xs text-muted-foreground">
-              {match.team1Sets} – {match.team2Sets}
+              {match.team1Sets}–{match.team2Sets}
+              {match.setScores && match.setScores.length > 0 && (
+                <span className="ml-1 font-mono opacity-70">
+                  ({match.setScores.map(s => `${s.team1}-${s.team2}`).join(', ')})
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -161,10 +166,21 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           </div>
 
           {/* Score */}
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-2xl font-bold">{match.team1Sets}</span>
-            <span className="text-xs text-muted-foreground">vs</span>
-            <span className="text-2xl font-bold">{match.team2Sets}</span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-2xl font-bold">{match.team1Sets}</span>
+              <span className="text-xs text-muted-foreground">–</span>
+              <span className="text-2xl font-bold">{match.team2Sets}</span>
+            </div>
+            {match.setScores && match.setScores.length > 0 && (
+              <div className="flex flex-col items-center gap-0.5">
+                {match.setScores.map((s, i) => (
+                  <span key={i} className="font-mono text-xs text-muted-foreground">
+                    {s.team1}–{s.team2}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Team 2 */}

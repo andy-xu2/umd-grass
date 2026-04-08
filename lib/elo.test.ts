@@ -21,12 +21,14 @@ describe('expectedScore', () => {
   })
 })
 
-describe('marginMultiplier', () => {
-  it('returns 1.0 when no setMargin is provided', () => {
+describe('marginMultiplier — no setMargin', () => {
+  it('returns 1.0 when setMargin is undefined', () => {
     expect(marginMultiplier(true, undefined)).toBe(1.0)
     expect(marginMultiplier(false, undefined)).toBe(1.0)
   })
+})
 
+describe('marginMultiplier — sets only (no pointDiff)', () => {
   it('close game (margin 1): winner gets ×1.0', () => {
     expect(marginMultiplier(true, 1)).toBe(1.0)
   })
@@ -41,6 +43,35 @@ describe('marginMultiplier', () => {
 
   it('blowout (margin 2): loser gets ×1.2', () => {
     expect(marginMultiplier(false, 2)).toBe(1.2)
+  })
+})
+
+describe('marginMultiplier — with pointDiff', () => {
+  it('winner gains more when point diff is large', () => {
+    const withBigDiff = marginMultiplier(true, 1, 30)
+    const withNoDiff = marginMultiplier(true, 1)
+    expect(withBigDiff).toBeGreaterThan(withNoDiff)
+  })
+
+  it('loser has higher multiplier when point diff is large (less softening → more loss)', () => {
+    const withBigDiff = marginMultiplier(false, 1, 30)
+    const withNoDiff = marginMultiplier(false, 1)
+    expect(withBigDiff).toBeGreaterThan(withNoDiff)
+  })
+
+  it('point diff adjustment is capped at +0.1', () => {
+    const winner = marginMultiplier(true, 1, 1000)
+    const baseline = marginMultiplier(true, 1)
+    expect(winner - baseline).toBeCloseTo(0.1, 5)
+
+    const loser = marginMultiplier(false, 1, 1000)
+    const loserBaseline = marginMultiplier(false, 1)
+    expect(loser - loserBaseline).toBeCloseTo(0.1, 5)
+  })
+
+  it('zero point diff produces same result as no point diff', () => {
+    expect(marginMultiplier(true, 1, 0)).toBe(marginMultiplier(true, 1))
+    expect(marginMultiplier(false, 2, 0)).toBe(marginMultiplier(false, 2))
   })
 })
 
@@ -128,6 +159,25 @@ describe('calculateRrChange — blowout (setMargin = 2)', () => {
     const blowout = calculateRrChange(800, 800, 800, false, 2)
     const close = calculateRrChange(800, 800, 800, false, 1)
     expect(Math.abs(blowout)).toBeGreaterThan(Math.abs(close))
+  })
+})
+
+describe('calculateRrChange — with pointDiff', () => {
+  it('dominant win (large pointDiff) gains more than a close win', () => {
+    const dominant = calculateRrChange(800, 800, 800, true, 1, 30)
+    const close = calculateRrChange(800, 800, 800, true, 1, 2)
+    expect(dominant).toBeGreaterThan(close)
+  })
+
+  it('dominant loss (large pointDiff) loses more than a close loss in points', () => {
+    // Larger multiplier (0.85) applied to negative base → larger absolute loss
+    const dominant = calculateRrChange(800, 800, 800, false, 1, 30)
+    const close = calculateRrChange(800, 800, 800, false, 1, 2)
+    expect(Math.abs(dominant)).toBeGreaterThan(Math.abs(close))
+  })
+
+  it('output is always an integer with pointDiff', () => {
+    expect(Number.isInteger(calculateRrChange(850, 780, 920, true, 1, 15))).toBe(true)
   })
 })
 

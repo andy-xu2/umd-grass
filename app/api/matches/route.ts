@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { matches, users, rrChanges, seasons } from '@/drizzle/schema'
 import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
-import type { MatchResponse } from '@/lib/types'
+import type { MatchResponse, SetScore } from '@/lib/types'
 
 export async function buildMatchesForUser(userId: string): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -32,6 +32,7 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
       team2Player2Id: matches.team2Player2Id,
       team2Player2Name: t2p2.name,
       team2Player2Avatar: t2p2.avatarUrl,
+      setScores: matches.setScores,
       team1Sets: matches.team1Sets,
       team2Sets: matches.team2Sets,
       status: matches.status,
@@ -96,6 +97,7 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
       name: row.team2Player2Name,
       avatarUrl: row.team2Player2Avatar,
     },
+    setScores: row.setScores as SetScore[] | null,
     team1Sets: row.team1Sets,
     team2Sets: row.team2Sets,
     status: row.status,
@@ -122,25 +124,37 @@ export async function POST(request: Request) {
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { teammateId, opponent1Id, opponent2Id, team1Sets, team2Sets } = body as {
+  const { teammateId, opponent1Id, opponent2Id, sets } = body as {
     teammateId?: string
     opponent1Id?: string
     opponent2Id?: string
-    team1Sets?: number
-    team2Sets?: number
+    sets?: SetScore[]
   }
 
   if (!teammateId || !opponent1Id || !opponent2Id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
-  if (typeof team1Sets !== 'number' || typeof team2Sets !== 'number') {
-    return NextResponse.json({ error: 'Score is required' }, { status: 400 })
+  if (!Array.isArray(sets) || sets.length === 0) {
+    return NextResponse.json({ error: 'At least one set is required' }, { status: 400 })
   }
+
+  for (const set of sets) {
+    if (typeof set.team1 !== 'number' || typeof set.team2 !== 'number') {
+      return NextResponse.json({ error: 'Each set must have numeric scores' }, { status: 400 })
+    }
+    if (set.team1 < 0 || set.team2 < 0) {
+      return NextResponse.json({ error: 'Set scores cannot be negative' }, { status: 400 })
+    }
+    if (set.team1 === set.team2) {
+      return NextResponse.json({ error: 'Individual sets cannot end in a tie' }, { status: 400 })
+    }
+  }
+
+  const team1Sets = sets.filter(s => s.team1 > s.team2).length
+  const team2Sets = sets.filter(s => s.team2 > s.team1).length
+
   if (team1Sets === team2Sets) {
     return NextResponse.json({ error: 'Match cannot end in a tie' }, { status: 400 })
-  }
-  if (team1Sets < 0 || team2Sets < 0) {
-    return NextResponse.json({ error: 'Invalid score' }, { status: 400 })
   }
 
   const allIds = [user.id, teammateId, opponent1Id, opponent2Id]
@@ -165,6 +179,7 @@ export async function POST(request: Request) {
       team1Player2Id: teammateId,
       team2Player1Id: opponent1Id,
       team2Player2Id: opponent2Id,
+      setScores: sets,
       team1Sets,
       team2Sets,
       expiresAt,
