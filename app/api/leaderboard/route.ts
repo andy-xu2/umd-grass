@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, gt, and } from 'drizzle-orm'
 import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
-    .where(eq(seasonStats.seasonId, seasonId))
+    .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
     .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
 
   // Assign sequential ranks only to revealed players (they come first in the sorted list)

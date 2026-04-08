@@ -58,7 +58,7 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
                 </>
               ) : (
                 <span className="text-sm text-muted-foreground">
-                  RR hidden until 5 games
+                  Play {5 - user.gamesPlayed} more game{5 - user.gamesPlayed !== 1 ? 's' : ''} to reveal your rank
                 </span>
               )}
             </div>

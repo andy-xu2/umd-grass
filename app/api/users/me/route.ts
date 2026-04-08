@@ -42,17 +42,19 @@ export async function GET(request: NextRequest) {
     if (seasonStat) {
       stats = seasonStat
 
-      const [{ value }] = await db
-        .select({ value: count() })
-        .from(seasonStats)
-        .where(
-          and(
-            eq(seasonStats.seasonId, resolvedSeasonId),
-            eq(seasonStats.isRevealed, true),
-            gt(seasonStats.rr, seasonStat.rr),
-          ),
-        )
-      rank = Number(value) + 1
+      if (seasonStat.isRevealed) {
+        const [{ value }] = await db
+          .select({ value: count() })
+          .from(seasonStats)
+          .where(
+            and(
+              eq(seasonStats.seasonId, resolvedSeasonId),
+              eq(seasonStats.isRevealed, true),
+              gt(seasonStats.rr, seasonStat.rr),
+            ),
+          )
+        rank = Number(value) + 1
+      }
     }
   }
 
