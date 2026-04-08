@@ -1,11 +1,11 @@
+import React from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { LucideIcon } from 'lucide-react'
 
 interface StatCardProps {
   label: string
   value: string | number
-  icon: LucideIcon
+  icon: React.ComponentType<{ className?: string }>
   trend?: {
     value: number
     isPositive: boolean
