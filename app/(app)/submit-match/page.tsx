@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VerificationCard } from '@/components/verification-card'
+import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { Loader2, CheckCircle, PlusCircle, Clock } from 'lucide-react'
 import type { UserWithStats, MatchResponse } from '@/lib/types'
@@ -169,9 +170,7 @@ export default function SubmitMatchPage() {
                       <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20">
                           <span className="text-sm font-semibold text-primary">
-                            {(allUsers.find(u => u.id === currentUserId)?.name ?? 'You')
-                              .slice(0, 2)
-                              .toUpperCase()}
+                            {getInitials(allUsers.find(u => u.id === currentUserId)?.name ?? 'You')}
                           </span>
                         </div>
                         <div>
