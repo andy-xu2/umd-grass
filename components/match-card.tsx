@@ -1,14 +1,28 @@
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn, getInitials } from '@/lib/utils'
 import { ArrowUp, ArrowDown, Clock } from 'lucide-react'
-import type { MatchResponse } from '@/lib/types'
+import type { MatchResponse, PlayerInfo } from '@/lib/types'
 
 interface MatchCardProps {
   match: MatchResponse
   currentUserId: string
   compact?: boolean
+}
+
+function PlayerLink({ player, currentUserId }: { player: PlayerInfo; currentUserId: string }) {
+  const href = player.id === currentUserId ? '/profile' : `/players/${player.id}`
+  return (
+    <Link
+      href={href}
+      onClick={e => e.stopPropagation()}
+      className="text-xs font-medium hover:underline hover:text-primary transition-colors"
+    >
+      {player.name}
+    </Link>
+  )
 }
 
 export function MatchCard({ match, currentUserId, compact = false }: MatchCardProps) {
@@ -121,16 +135,25 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           >
             <div className="flex -space-x-2">
               {[match.team1Player1, match.team1Player2].map(p => (
-                <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
-                  <AvatarFallback className="bg-secondary text-xs">
-                    {getInitials(p.name)}
-                  </AvatarFallback>
-                </Avatar>
+                <Link
+                  key={p.id}
+                  href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
+                  onClick={e => e.stopPropagation()}
+                  className="transition-opacity hover:opacity-80"
+                >
+                  <Avatar className="h-10 w-10 border-2 border-background">
+                    {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
+                    <AvatarFallback className="bg-secondary text-xs">
+                      {getInitials(p.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
               ))}
             </div>
             <div className="text-center">
-              <p className="text-xs font-medium">{match.team1Player1.name}</p>
-              <p className="text-xs font-medium">{match.team1Player2.name}</p>
+              <PlayerLink player={match.team1Player1} currentUserId={currentUserId} />
+              <br />
+              <PlayerLink player={match.team1Player2} currentUserId={currentUserId} />
             </div>
             {winnerTeam === 'team1' && (
               <Badge className="bg-primary text-primary-foreground">WIN</Badge>
@@ -153,16 +176,25 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           >
             <div className="flex -space-x-2">
               {[match.team2Player1, match.team2Player2].map(p => (
-                <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
-                  <AvatarFallback className="bg-secondary text-xs">
-                    {getInitials(p.name)}
-                  </AvatarFallback>
-                </Avatar>
+                <Link
+                  key={p.id}
+                  href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
+                  onClick={e => e.stopPropagation()}
+                  className="transition-opacity hover:opacity-80"
+                >
+                  <Avatar className="h-10 w-10 border-2 border-background">
+                    {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
+                    <AvatarFallback className="bg-secondary text-xs">
+                      {getInitials(p.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Link>
               ))}
             </div>
             <div className="text-center">
-              <p className="text-xs font-medium">{match.team2Player1.name}</p>
-              <p className="text-xs font-medium">{match.team2Player2.name}</p>
+              <PlayerLink player={match.team2Player1} currentUserId={currentUserId} />
+              <br />
+              <PlayerLink player={match.team2Player2} currentUserId={currentUserId} />
             </div>
             {winnerTeam === 'team2' && (
               <Badge className="bg-primary text-primary-foreground">WIN</Badge>

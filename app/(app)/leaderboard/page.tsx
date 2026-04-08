@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import { LeaderboardRow } from '@/components/leaderboard-row'
 import { SeasonSelector } from '@/components/season-selector'
 import { Input } from '@/components/ui/input'
@@ -124,50 +125,50 @@ export default function LeaderboardPage() {
         <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {/* 2nd Place */}
           <div className="order-1 flex flex-col items-center">
-            <div className="mb-2 flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full border-2 border-slate-400 bg-secondary">
+            <Link href={top3[1] ? (top3[1].userId === me?.id ? '/profile' : `/players/${top3[1].userId}`) : '#'} className="mb-2 flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-full border-2 border-slate-400 bg-secondary hover:opacity-80 transition-opacity">
               <span className="text-lg sm:text-2xl font-bold text-slate-400">
                 {top3[1] ? getInitials(top3[1].name) : ''}
               </span>
-            </div>
+            </Link>
             <div className="flex h-16 sm:h-20 w-full items-end justify-center rounded-t-lg bg-slate-400/20">
               <span className="pb-2 text-2xl sm:text-3xl font-bold text-slate-400">2</span>
             </div>
-            <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
+            <Link href={top3[1] ? (top3[1].userId === me?.id ? '/profile' : `/players/${top3[1].userId}`) : '#'} className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full hover:underline hover:text-primary transition-colors">
               {top3[1]?.name}
-            </p>
+            </Link>
             <p className="text-xs text-muted-foreground">{top3[1]?.rr} RR</p>
           </div>
 
           {/* 1st Place */}
           <div className="order-0 sm:order-1 flex flex-col items-center">
-            <div className="mb-2 flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-full border-2 border-yellow-500 bg-secondary">
+            <Link href={top3[0] ? (top3[0].userId === me?.id ? '/profile' : `/players/${top3[0].userId}`) : '#'} className="mb-2 flex h-20 w-20 sm:h-24 sm:w-24 items-center justify-center rounded-full border-2 border-yellow-500 bg-secondary hover:opacity-80 transition-opacity">
               <span className="text-xl sm:text-3xl font-bold text-yellow-500">
                 {top3[0] ? getInitials(top3[0].name) : ''}
               </span>
-            </div>
+            </Link>
             <div className="flex h-20 sm:h-24 w-full items-end justify-center rounded-t-lg bg-yellow-500/20">
               <span className="pb-2 text-3xl sm:text-4xl font-bold text-yellow-500">1</span>
             </div>
-            <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
+            <Link href={top3[0] ? (top3[0].userId === me?.id ? '/profile' : `/players/${top3[0].userId}`) : '#'} className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full hover:underline hover:text-primary transition-colors">
               {top3[0]?.name}
-            </p>
+            </Link>
             <p className="text-xs text-muted-foreground">{top3[0]?.rr} RR</p>
           </div>
 
           {/* 3rd Place */}
           {top3.length >= 3 && (
             <div className="order-2 flex flex-col items-center">
-              <div className="mb-2 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 border-amber-600 bg-secondary">
+              <Link href={top3[2] ? (top3[2].userId === me?.id ? '/profile' : `/players/${top3[2].userId}`) : '#'} className="mb-2 flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full border-2 border-amber-600 bg-secondary hover:opacity-80 transition-opacity">
                 <span className="text-base sm:text-xl font-bold text-amber-600">
                   {top3[2] ? getInitials(top3[2].name) : ''}
                 </span>
-              </div>
+              </Link>
               <div className="flex h-12 sm:h-16 w-full items-end justify-center rounded-t-lg bg-amber-600/20">
                 <span className="pb-2 text-xl sm:text-2xl font-bold text-amber-600">3</span>
               </div>
-              <p className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full">
+              <Link href={top3[2] ? (top3[2].userId === me?.id ? '/profile' : `/players/${top3[2].userId}`) : '#'} className="mt-2 text-center text-xs sm:text-sm font-medium truncate w-full hover:underline hover:text-primary transition-colors">
                 {top3[2]?.name}
-              </p>
+              </Link>
               <p className="text-xs text-muted-foreground">{top3[2]?.rr} RR</p>
             </div>
           )}

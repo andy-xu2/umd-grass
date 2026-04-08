@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { getSkillTier } from '@/lib/mock-data'
@@ -22,11 +23,12 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
   const unranked = !entry.isRevealed
   const isCurrentUser = entry.userId === currentUserId
   const rankDisplay = entry.rank != null ? getRankDisplay(entry.rank) : { bg: 'bg-secondary', text: 'text-muted-foreground' }
+  const href = isCurrentUser ? '/profile' : `/players/${entry.userId}`
 
   return (
-    <div className={cn(
+    <Link href={href} className={cn(
       'flex items-center gap-4 rounded-lg p-4 transition-colors',
-      isCurrentUser ? 'bg-primary/10 border border-primary/30' : 'bg-secondary/30 hover:bg-secondary/50'
+      isCurrentUser ? 'bg-primary/10 border border-primary/30 hover:bg-primary/15' : 'bg-secondary/30 hover:bg-secondary/50'
     )}>
       <div className={cn(
         'flex h-10 w-10 items-center justify-center rounded-lg font-bold',
@@ -76,6 +78,6 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
           </>
         )}
       </div>
-    </div>
+    </Link>
   )
 }

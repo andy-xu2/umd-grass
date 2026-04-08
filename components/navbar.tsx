@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert } from 'lucide-react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
@@ -13,6 +13,7 @@ const ADMIN_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { href: '/players', label: 'Players', icon: Users },
   { href: '/submit-match', label: 'Submit Match', icon: PlusCircle },
   { href: '/profile', label: 'Profile', icon: User },
 ]
