@@ -11,7 +11,12 @@ export default async function PlayersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
+  // Batch 1: all seasons + all users — parallel
+  const [allSeasons, allUsers] = await Promise.all([
+    db.select().from(seasons).orderBy(desc(seasons.startedAt)),
+    db.select().from(users),
+  ])
+
   const seasonList: Season[] = allSeasons.map(s => ({
     id: s.id,
     name: s.name,
@@ -20,10 +25,7 @@ export default async function PlayersPage() {
     endedAt: s.endedAt?.toISOString() ?? null,
   }))
 
-  const activeSeason = allSeasons.find(s => s.isActive) ?? null
-  const seasonId = activeSeason?.id ?? null
-
-  const allUsers = await db.select().from(users)
+  const seasonId = allSeasons.find(s => s.isActive)?.id ?? null
 
   let initialPlayers: UserWithStats[]
 

@@ -15,10 +15,10 @@ const ADMIN_IDS = [
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/profile', label: 'Profile', icon: User },
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/players', label: 'Players', icon: Users },
   { href: '/submit-match', label: 'Submit Match', icon: PlusCircle },
-  { href: '/profile', label: 'Profile', icon: User },
 ]
 
 export function Navbar() {

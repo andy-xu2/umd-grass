@@ -11,10 +11,13 @@ export default async function ProfilePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [profile] = await db.select().from(users).where(eq(users.id, user.id))
+  // Batch 1: profile + all seasons — parallel
+  const [[profile], allSeasons] = await Promise.all([
+    db.select().from(users).where(eq(users.id, user.id)),
+    db.select().from(seasons).orderBy(desc(seasons.startedAt)),
+  ])
   if (!profile) redirect('/login')
 
-  const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
   const seasonList: Season[] = allSeasons.map(s => ({
     id: s.id,
     name: s.name,
@@ -23,13 +26,13 @@ export default async function ProfilePage() {
     endedAt: s.endedAt?.toISOString() ?? null,
   }))
 
-  const activeSeason = allSeasons.find(s => s.isActive) ?? null
-  const seasonId = activeSeason?.id ?? null
+  const seasonId = allSeasons.find(s => s.isActive)?.id ?? null
 
   let stats = null
   let rank: number | null = null
 
   if (seasonId) {
+    // Batch 2: season stats for this user
     const [stat] = await db
       .select()
       .from(seasonStats)
@@ -44,6 +47,7 @@ export default async function ProfilePage() {
         isRevealed: stat.isRevealed,
       }
 
+      // Batch 3: rank count only if revealed
       if (stat.isRevealed) {
         const [{ value }] = await db
           .select({ value: count() })

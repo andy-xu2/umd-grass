@@ -18,30 +18,79 @@ export default async function DashboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Profile
-  const [profile] = await db.select().from(users).where(eq(users.id, user.id))
+  // Batch 1: all queries that don't depend on each other
+  const [[profile], [activeSeason], allMatches] = await Promise.all([
+    db.select().from(users).where(eq(users.id, user.id)),
+    db.select().from(seasons).where(eq(seasons.isActive, true)),
+    buildMatchesForUser(user.id),
+  ])
 
-  // Active season
-  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
-
-  // Season stats for this user
-  let stats = null
-  if (activeSeason) {
-    const [s] = await db
-      .select()
-      .from(seasonStats)
-      .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, activeSeason.id)))
-    stats = s ?? null
-  }
-
-  // All matches involving this user
-  const allMatches = await buildMatchesForUser(user.id)
   const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
   const pendingToVerify = allMatches.filter(
     m =>
       m.status === 'PENDING' &&
       (m.team2Player1.id === user.id || m.team2Player2.id === user.id),
   )
+
+  // Batch 2: queries that depend on activeSeason.id, run in parallel
+  let stats = null
+  let leaderboardEntries: LeaderboardEntry[] = []
+
+  if (activeSeason) {
+    const [statsRows, leaderboardRows] = await Promise.all([
+      db.select().from(seasonStats)
+        .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, activeSeason.id))),
+      db.select({
+        userId: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+        rr: seasonStats.rr,
+        gamesPlayed: seasonStats.gamesPlayed,
+        wins: seasonStats.wins,
+        losses: seasonStats.losses,
+        isRevealed: seasonStats.isRevealed,
+      })
+        .from(seasonStats)
+        .innerJoin(users, eq(seasonStats.userId, users.id))
+        .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
+        .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr)),
+    ])
+
+    stats = statsRows[0] ?? null
+
+    let rankCounter = 0
+    leaderboardEntries = leaderboardRows.map(row => {
+      if (row.isRevealed) {
+        rankCounter++
+        return { ...row, rank: rankCounter, rankTrend: null }
+      }
+      return { ...row, rank: null, rankTrend: null }
+    })
+
+    // Batch 3: rank trends (depends on leaderboard player IDs)
+    const playerIds = leaderboardEntries.map(e => e.userId)
+    if (playerIds.length > 0) {
+      const recentChanges = await db
+        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
+        .from(rrChanges)
+        .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
+        .orderBy(desc(rrChanges.createdAt))
+
+      const latestRrBefore = new Map<string, number>()
+      for (const change of recentChanges) {
+        if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
+      }
+
+      const revealedEntries = leaderboardEntries.filter(e => e.rank != null)
+      for (const entry of leaderboardEntries) {
+        if (entry.rank == null) continue
+        const rrBefore = latestRrBefore.get(entry.userId)
+        if (rrBefore == null) { entry.rankTrend = 0; continue }
+        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+        entry.rankTrend = prevRank - entry.rank
+      }
+    }
+  }
 
   const rr = stats?.rr ?? 800
   const gamesPlayed = stats?.gamesPlayed ?? 0
@@ -58,61 +107,6 @@ export default async function DashboardPage() {
     wins,
     losses,
     isRevealed,
-  }
-
-  // Leaderboard data for mini-leaderboard
-  let leaderboardEntries: LeaderboardEntry[] = []
-  if (activeSeason) {
-    const rows = await db
-      .select({
-        userId: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-        rr: seasonStats.rr,
-        gamesPlayed: seasonStats.gamesPlayed,
-        wins: seasonStats.wins,
-        losses: seasonStats.losses,
-        isRevealed: seasonStats.isRevealed,
-      })
-      .from(seasonStats)
-      .innerJoin(users, eq(seasonStats.userId, users.id))
-      .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
-      .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
-
-    let rankCounter = 0
-    leaderboardEntries = rows.map(row => {
-      if (row.isRevealed) {
-        rankCounter++
-        return { ...row, rank: rankCounter, rankTrend: null }
-      }
-      return { ...row, rank: null, rankTrend: null }
-    })
-
-    // Compute rank trends
-    const playerIds = leaderboardEntries.map(e => e.userId)
-    if (playerIds.length > 0) {
-      const recentChanges = await db
-        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
-        .from(rrChanges)
-        .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
-        .orderBy(desc(rrChanges.createdAt))
-
-      const latestRrBefore = new Map<string, number>()
-      for (const change of recentChanges) {
-        if (!latestRrBefore.has(change.userId)) {
-          latestRrBefore.set(change.userId, change.rrBefore)
-        }
-      }
-
-      const revealedEntries = leaderboardEntries.filter(e => e.rank != null)
-      for (const entry of leaderboardEntries) {
-        if (entry.rank == null) continue
-        const rrBefore = latestRrBefore.get(entry.userId)
-        if (rrBefore == null) { entry.rankTrend = 0; continue }
-        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
-        entry.rankTrend = prevRank - entry.rank
-      }
-    }
   }
 
   return (

@@ -11,6 +11,7 @@ export default async function LeaderboardPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  // Batch 1: all seasons (need seasonId before anything else)
   const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
   const seasonList: Season[] = allSeasons.map(s => ({
     id: s.id,
@@ -24,9 +25,12 @@ export default async function LeaderboardPage() {
   const seasonId = activeSeason?.id ?? null
 
   let entries: LeaderboardEntry[] = []
+  let me = null
+
   if (seasonId) {
-    const rows = await db
-      .select({
+    // Batch 2: leaderboard rows + my profile + my stats — all in parallel
+    const [leaderboardRows, [profile], myStatsRows] = await Promise.all([
+      db.select({
         userId: users.id,
         name: users.name,
         avatarUrl: users.avatarUrl,
@@ -36,13 +40,19 @@ export default async function LeaderboardPage() {
         losses: seasonStats.losses,
         isRevealed: seasonStats.isRevealed,
       })
-      .from(seasonStats)
-      .innerJoin(users, eq(seasonStats.userId, users.id))
-      .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
-      .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
+        .from(seasonStats)
+        .innerJoin(users, eq(seasonStats.userId, users.id))
+        .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
+        .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr)),
+      db.select().from(users).where(eq(users.id, user.id)),
+      db.select().from(seasonStats)
+        .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, seasonId))),
+    ])
+
+    const stat = myStatsRows[0] ?? null
 
     let rankCounter = 0
-    entries = rows.map(row => {
+    entries = leaderboardRows.map(row => {
       if (row.isRevealed) {
         rankCounter++
         return { ...row, rank: rankCounter, rankTrend: null }
@@ -50,58 +60,43 @@ export default async function LeaderboardPage() {
       return { ...row, rank: null, rankTrend: null }
     })
 
-    // Calculate rank trends from most recent rr_changes
+    // Batch 3: rr trends + my rank count — both in parallel
     const playerIds = entries.map(e => e.userId)
-    if (playerIds.length > 0) {
-      const recentChanges = await db
-        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore, createdAt: rrChanges.createdAt })
-        .from(rrChanges)
-        .where(and(eq(rrChanges.seasonId, seasonId), inArray(rrChanges.userId, playerIds)))
-        .orderBy(desc(rrChanges.createdAt))
 
-      // Keep only the most recent change per player
-      const latestRrBefore = new Map<string, number>()
-      for (const change of recentChanges) {
-        if (!latestRrBefore.has(change.userId)) {
-          latestRrBefore.set(change.userId, change.rrBefore)
-        }
-      }
+    const [recentChanges, rankCountResult] = await Promise.all([
+      playerIds.length > 0
+        ? db.select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
+            .from(rrChanges)
+            .where(and(eq(rrChanges.seasonId, seasonId), inArray(rrChanges.userId, playerIds)))
+            .orderBy(desc(rrChanges.createdAt))
+        : Promise.resolve([]),
+      stat?.isRevealed
+        ? db.select({ value: count() })
+            .from(seasonStats)
+            .where(and(
+              eq(seasonStats.seasonId, seasonId),
+              eq(seasonStats.isRevealed, true),
+              gt(seasonStats.rr, stat.rr),
+            ))
+        : Promise.resolve(null),
+    ])
 
-      const revealedEntries = entries.filter(e => e.rank != null)
-      for (const entry of entries) {
-        if (entry.rank == null) continue
-        const rrBefore = latestRrBefore.get(entry.userId)
-        if (rrBefore == null) { entry.rankTrend = 0; continue }
-        // How many revealed peers (excluding this player) had higher RR than rrBefore?
-        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
-        entry.rankTrend = prevRank - entry.rank // positive = moved up
-      }
+    // Apply rank trends
+    const latestRrBefore = new Map<string, number>()
+    for (const change of recentChanges) {
+      if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
     }
-  }
-
-  let me = null
-  if (seasonId) {
-    const [profile] = await db.select().from(users).where(eq(users.id, user.id))
-    const [stat] = await db
-      .select()
-      .from(seasonStats)
-      .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, seasonId)))
-
-    let rank: number | null = null
-    if (stat?.isRevealed) {
-      const [{ value }] = await db
-        .select({ value: count() })
-        .from(seasonStats)
-        .where(
-          and(
-            eq(seasonStats.seasonId, seasonId),
-            eq(seasonStats.isRevealed, true),
-            gt(seasonStats.rr, stat.rr),
-          ),
-        )
-      rank = Number(value) + 1
+    const revealedEntries = entries.filter(e => e.rank != null)
+    for (const entry of entries) {
+      if (entry.rank == null) continue
+      const rrBefore = latestRrBefore.get(entry.userId)
+      if (rrBefore == null) { entry.rankTrend = 0; continue }
+      const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+      entry.rankTrend = prevRank - entry.rank
     }
 
+    // Build "me" object
+    const rank = rankCountResult ? Number(rankCountResult[0].value) + 1 : null
     me = {
       id: user.id,
       name: profile?.name ?? '',
