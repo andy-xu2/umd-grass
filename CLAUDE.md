@@ -12,7 +12,6 @@ A progressive web app (PWA) for the UMD grass volleyball community. It tracks do
 | Database | PostgreSQL via Supabase | Free tier, relational, same platform as auth/storage |
 | Auth | Supabase Auth + @supabase/ssr | Cookie-based sessions, TOTP 2FA, persistent login |
 | ORM | Drizzle ORM | Lightweight, edge-compatible, no cold-start penalty on Vercel |
-| Email | Resend | Transactional email for match verification notifications |
 | Storage | Supabase Storage | Profile photo uploads |
 | PWA | @ducanh2912/next-pwa | Service worker, offline cache, install prompt |
 | Hosting | Vercel (Hobby free tier) | Native Next.js deployment |
@@ -101,7 +100,6 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 DATABASE_URL=        # Supabase Postgres with pgBouncer for serverless
-RESEND_API_KEY=
 NEXT_PUBLIC_APP_URL=
 ```
 
@@ -122,7 +120,7 @@ NEXT_PUBLIC_APP_URL=
 - Repeated ranking logic extracted to helpers in `lib/mock-data.ts`
 
 ### Part 1 — Project Setup ✅
-- Installed: `@supabase/supabase-js`, `@supabase/ssr`, `drizzle-orm`, `drizzle-kit`, `postgres`, `@ducanh2912/next-pwa`, `resend`
+- Installed: `@supabase/supabase-js`, `@supabase/ssr`, `drizzle-orm`, `drizzle-kit`, `postgres`, `@ducanh2912/next-pwa`
 - `lib/supabase-browser.ts` — browser Supabase client
 - `lib/supabase-server.ts` — server Supabase client with cookie adapter
 - `drizzle.config.ts` — points to `drizzle/schema.ts`, reads `DATABASE_URL`
