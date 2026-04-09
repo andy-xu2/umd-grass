@@ -1,4 +1,5 @@
-// POST /api/users/me/avatar — upload avatar via server using service_role key (bypasses Storage RLS)
+// POST   /api/users/me/avatar — upload avatar via server using service_role key (bypasses Storage RLS)
+// DELETE /api/users/me/avatar — remove avatar
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
@@ -50,4 +51,29 @@ export async function POST(request: NextRequest) {
   await db.update(users).set({ avatarUrl: cacheBustedUrl }).where(eq(users.id, user.id))
 
   return NextResponse.json({ avatarUrl: cacheBustedUrl })
+}
+
+export async function DELETE() {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+
+  if (error || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const admin = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  )
+
+  // Remove all avatar files for this user (any extension)
+  const { data: files } = await admin.storage.from('avatars').list(user.id)
+  if (files && files.length > 0) {
+    const paths = files.map(f => `${user.id}/${f.name}`)
+    await admin.storage.from('avatars').remove(paths)
+  }
+
+  await db.update(users).set({ avatarUrl: null }).where(eq(users.id, user.id))
+
+  return NextResponse.json({ ok: true })
 }

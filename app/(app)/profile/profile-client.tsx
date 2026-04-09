@@ -7,11 +7,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { getSkillTier, isUnranked } from '@/lib/mock-data'
-import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
+import { Camera, Trash2, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { SeasonSelector } from '@/components/season-selector'
+import { AvatarCropDialog } from '@/components/avatar-crop-dialog'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import type { Season, AllTimeStats } from '@/lib/types'
@@ -48,6 +50,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   const [loadingSeason, setLoadingSeason] = useState(false)
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const loadedSeasonId = useRef<string | null>(initialSeasonId)
 
@@ -66,14 +69,19 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     if (sid && sid !== loadedSeasonId.current) fetchProfile(sid)
   }
 
-  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    setCropSrc(URL.createObjectURL(file))
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
 
+  async function handleCropConfirm(croppedBlob: Blob) {
     setIsUploadingAvatar(true)
+    setCropSrc(null)
 
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', croppedBlob, 'avatar.jpg')
 
     const res = await fetch('/api/users/me/avatar', {
       method: 'POST',
@@ -83,11 +91,28 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     if (res.ok) {
       const { avatarUrl } = await res.json()
       setProfile(prev => ({ ...prev, avatarUrl }))
-      toast.success('Avatar updated')
+      toast.success('Profile photo updated')
     } else {
       toast.error('Failed to upload profile pic')
     }
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    setIsUploadingAvatar(false)
+  }
+
+  function handleCropCancel() {
+    setCropSrc(null)
+  }
+
+  async function handleRemoveAvatar() {
+    setIsUploadingAvatar(true)
+
+    const res = await fetch('/api/users/me/avatar', { method: 'DELETE' })
+
+    if (res.ok) {
+      setProfile(prev => ({ ...prev, avatarUrl: null }))
+      toast.success('Profile photo removed')
+    } else {
+      toast.error('Failed to remove profile photo')
+    }
     setIsUploadingAvatar(false)
   }
 
@@ -121,24 +146,46 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
                   {getInitials(profile.name)}
                 </AvatarFallback>
               </Avatar>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingAvatar}
-                className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {isUploadingAvatar
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Camera className="h-4 w-4" />
-                }
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    disabled={isUploadingAvatar}
+                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {isUploadingAvatar
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Camera className="h-4 w-4" />
+                    }
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+                    <Camera className="mr-2 h-4 w-4" />
+                    Upload photo
+                  </DropdownMenuItem>
+                  {profile.avatarUrl && (
+                    <DropdownMenuItem onClick={handleRemoveAvatar} className="text-destructive focus:text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remove photo
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={handleAvatarUpload}
+                onChange={handleFileSelected}
               />
             </div>
+            {cropSrc && (
+              <AvatarCropDialog
+                imageSrc={cropSrc}
+                onConfirm={handleCropConfirm}
+                onCancel={handleCropCancel}
+              />
+            )}
             <div className="flex-1 text-center sm:text-left">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
                 <h2 className="text-2xl font-bold">{profile.name}</h2>
