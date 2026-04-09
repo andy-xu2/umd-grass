@@ -1,4 +1,4 @@
-// GET /api/leaderboard — season_stats joined with users, sorted by RR
+// GET /api/leaderboard — season_stats joined with users, sorted by RR desc
 // Query params:
 //   ?seasonId=<uuid>  — defaults to the active season
 
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
     seasonId = activeSeason.id
   }
 
-  // Revealed players first (true sorts after false in pg, so DESC), then by RR desc
   const rows = await db
     .select({
       userId: users.id,
@@ -36,22 +35,18 @@ export async function GET(request: NextRequest) {
       gamesPlayed: seasonStats.gamesPlayed,
       wins: seasonStats.wins,
       losses: seasonStats.losses,
-      isRevealed: seasonStats.isRevealed,
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
     .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
-    .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
+    .orderBy(desc(seasonStats.rr))
 
-  // Assign sequential ranks only to revealed players (they come first in the sorted list)
   let rankCounter = 0
-  const entries: LeaderboardEntry[] = rows.map(row => {
-    if (row.isRevealed) {
-      rankCounter++
-      return { ...row, rank: rankCounter, rankTrend: null }
-    }
-    return { ...row, rank: null, rankTrend: null }
-  })
+  const entries: LeaderboardEntry[] = rows.map(row => ({
+    ...row,
+    rank: ++rankCounter,
+    rankTrend: null,
+  }))
 
   // Calculate rank trends from most recent rr_changes
   const playerIds = entries.map(e => e.userId)
@@ -69,12 +64,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const revealedEntries = entries.filter(e => e.rank != null)
     for (const entry of entries) {
-      if (entry.rank == null) continue
       const rrBefore = latestRrBefore.get(entry.userId)
       if (rrBefore == null) { entry.rankTrend = 0; continue }
-      const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+      const prevRank = entries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
       entry.rankTrend = prevRank - entry.rank
     }
   }

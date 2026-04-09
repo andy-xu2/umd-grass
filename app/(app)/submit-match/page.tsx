@@ -126,8 +126,7 @@ export default function SubmitMatchPage() {
   const handleReject = (matchId: string) => handleVerify(matchId, 'reject')
 
   function displayRr(u: UserWithStats) {
-    if (!u.stats) return 'Unranked'
-    if (!u.stats.isRevealed) return 'Unranked'
+    if (!u.stats || u.stats.gamesPlayed === 0) return 'Unranked'
     return `${u.stats.rr} RR`
   }
 

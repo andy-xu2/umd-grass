@@ -127,10 +127,9 @@ function PlayerRow({
   onClick: () => void
 }) {
   const stats = player.stats
-  const isRevealed = stats?.isRevealed ?? false
-  const rr = isRevealed ? (stats?.rr ?? 800) : 800
+  const rr = stats?.rr ?? 0
   const gamesPlayed = stats?.gamesPlayed ?? 0
-  const unranked = !isRevealed || gamesPlayed < 5
+  const unranked = gamesPlayed === 0
   const tier = getSkillTier(rr)
 
   return (

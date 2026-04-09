@@ -36,21 +36,18 @@ async function DashboardLeaderboard({ userId }: { userId: string }) {
       gamesPlayed: seasonStats.gamesPlayed,
       wins: seasonStats.wins,
       losses: seasonStats.losses,
-      isRevealed: seasonStats.isRevealed,
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
     .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
-    .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
+    .orderBy(desc(seasonStats.rr))
 
   let rankCounter = 0
-  const entries: LeaderboardEntry[] = rows.map(row => {
-    if (row.isRevealed) {
-      rankCounter++
-      return { ...row, rank: rankCounter, rankTrend: null }
-    }
-    return { ...row, rank: null, rankTrend: null }
-  })
+  const entries: LeaderboardEntry[] = rows.map(row => ({
+    ...row,
+    rank: ++rankCounter,
+    rankTrend: null,
+  }))
 
   const playerIds = entries.map(e => e.userId)
   if (playerIds.length > 0) {
@@ -64,12 +61,10 @@ async function DashboardLeaderboard({ userId }: { userId: string }) {
     for (const change of recentChanges) {
       if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
     }
-    const revealedEntries = entries.filter(e => e.rank != null)
     for (const entry of entries) {
-      if (entry.rank == null) continue
       const rrBefore = latestRrBefore.get(entry.userId)
       if (rrBefore == null) { entry.rankTrend = 0; continue }
-      const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+      const prevRank = entries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
       entry.rankTrend = prevRank - entry.rank
     }
   }
@@ -96,11 +91,10 @@ async function DashboardPlayerCard({ userId }: { userId: string }) {
     id: userId,
     name: profile?.name ?? 'Player',
     avatarUrl: profile?.avatarUrl ?? null,
-    rr: stats?.rr ?? 800,
+    rr: stats?.rr ?? 0,
     gamesPlayed: stats?.gamesPlayed ?? 0,
     wins: stats?.wins ?? 0,
     losses: stats?.losses ?? 0,
-    isRevealed: stats?.isRevealed ?? false,
   }
 
   return <PlayerCard user={playerCardUser} />

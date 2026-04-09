@@ -14,7 +14,7 @@ import type { LeaderboardEntry, LeaderboardResponse, Season } from '@/lib/types'
 interface MeData {
   id: string
   name: string
-  stats: { rr: number; isRevealed: boolean } | null
+  stats: { rr: number } | null
   rank: number | null
 }
 
@@ -106,7 +106,7 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
               <Skeleton className="h-8 w-16 mt-1 ml-auto" />
             ) : (
               <p className="text-2xl font-bold text-primary">
-                {me?.stats?.isRevealed ? me.stats.rr : '—'}
+                {me?.stats?.rr ?? '—'}
               </p>
             )}
           </div>

@@ -8,13 +8,10 @@ export interface PlayerCardUser {
   id: string
   name: string
   avatarUrl?: string | null
-  /** RR from season_stats; 800 default if no stats yet */
   rr: number
   gamesPlayed: number
   wins: number
   losses: number
-  /** When false, rank/RR is hidden (fewer than 5 confirmed games) */
-  isRevealed: boolean
 }
 
 interface PlayerCardProps {
@@ -40,7 +37,7 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold">{user.name}</h3>
-              {!user.isRevealed ? (
+              {user.gamesPlayed === 0 ? (
                 <Badge variant="secondary" className="text-xs">
                   Unranked
                 </Badge>
@@ -51,15 +48,13 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
               )}
             </div>
             <div className="mt-1 flex items-baseline gap-1">
-              {user.isRevealed ? (
+              {user.gamesPlayed > 0 ? (
                 <>
                   <span className="text-3xl font-bold text-primary">{user.rr}</span>
                   <span className="text-sm text-muted-foreground">RR</span>
                 </>
               ) : (
-                <span className="text-sm text-muted-foreground">
-                  Play {5 - user.gamesPlayed} more game{5 - user.gamesPlayed !== 1 ? 's' : ''} to reveal your rank
-                </span>
+                <span className="text-sm text-muted-foreground">No games played yet</span>
               )}
             </div>
           </div>

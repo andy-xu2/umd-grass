@@ -51,11 +51,9 @@ export async function GET(request: NextRequest) {
         ? {
             id: s.id,
             rr: s.rr,
-            hiddenMmr: s.hiddenMmr,
             gamesPlayed: s.gamesPlayed,
             wins: s.wins,
             losses: s.losses,
-            isRevealed: s.isRevealed,
           }
         : null,
     }

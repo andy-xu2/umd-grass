@@ -27,7 +27,6 @@ type PlayerProfile = {
     gamesPlayed: number
     wins: number
     losses: number
-    isRevealed: boolean
   } | null
   rank: number | null
 }
@@ -132,11 +131,10 @@ export default function PlayerProfilePage() {
   }
 
   const stats = profile.stats
-  const isRevealed = stats?.isRevealed ?? false
-  const rr = isRevealed ? (stats?.rr ?? 800) : 800
+  const rr = stats?.rr ?? 0
   const gamesPlayed = stats?.gamesPlayed ?? 0
   const wins = stats?.wins ?? 0
-  const unranked = !isRevealed || gamesPlayed < 5
+  const unranked = gamesPlayed === 0
   const tier = getSkillTier(rr)
   const winRate = getWinRate(wins, gamesPlayed)
 
@@ -192,7 +190,7 @@ export default function PlayerProfilePage() {
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold">
-                    {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
+                    {profile.rank != null ? `#${profile.rank}` : '—'}
                   </p>
                   <p className="text-xs text-muted-foreground">Rank</p>
                 </div>
@@ -215,7 +213,7 @@ export default function PlayerProfilePage() {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
+                {profile.rank != null ? `#${profile.rank}` : '—'}
               </p>
               <p className="text-xs text-muted-foreground">Global Rank</p>
             </div>

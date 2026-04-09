@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
-import { eq, desc, gt, and, count, inArray } from 'drizzle-orm'
+import { eq, desc, gt, and, count, inArray, sql } from 'drizzle-orm'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, Season } from '@/lib/types'
 import LeaderboardClient from './leaderboard-client'
@@ -35,12 +35,11 @@ async function LeaderboardData({ userId }: { userId: string }) {
         gamesPlayed: seasonStats.gamesPlayed,
         wins: seasonStats.wins,
         losses: seasonStats.losses,
-        isRevealed: seasonStats.isRevealed,
       })
         .from(seasonStats)
         .innerJoin(users, eq(seasonStats.userId, users.id))
         .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
-        .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr)),
+        .orderBy(desc(seasonStats.rr)),
       db.select().from(users).where(eq(users.id, userId)),
       db.select().from(seasonStats)
         .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, seasonId))),
@@ -49,13 +48,11 @@ async function LeaderboardData({ userId }: { userId: string }) {
     const stat = myStatsRows[0] ?? null
 
     let rankCounter = 0
-    entries = leaderboardRows.map(row => {
-      if (row.isRevealed) {
-        rankCounter++
-        return { ...row, rank: rankCounter, rankTrend: null }
-      }
-      return { ...row, rank: null, rankTrend: null }
-    })
+    entries = leaderboardRows.map(row => ({
+      ...row,
+      rank: ++rankCounter,
+      rankTrend: null,
+    }))
 
     // Batch 3: rr trends + my rank count — both in parallel
     const playerIds = entries.map(e => e.userId)
@@ -67,12 +64,11 @@ async function LeaderboardData({ userId }: { userId: string }) {
             .where(and(eq(rrChanges.seasonId, seasonId), inArray(rrChanges.userId, playerIds)))
             .orderBy(desc(rrChanges.createdAt))
         : Promise.resolve([]),
-      stat?.isRevealed
+      stat
         ? db.select({ value: count() })
             .from(seasonStats)
             .where(and(
               eq(seasonStats.seasonId, seasonId),
-              eq(seasonStats.isRevealed, true),
               gt(seasonStats.rr, stat.rr),
             ))
         : Promise.resolve(null),
@@ -82,12 +78,10 @@ async function LeaderboardData({ userId }: { userId: string }) {
     for (const change of recentChanges) {
       if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
     }
-    const revealedEntries = entries.filter(e => e.rank != null)
     for (const entry of entries) {
-      if (entry.rank == null) continue
       const rrBefore = latestRrBefore.get(entry.userId)
       if (rrBefore == null) { entry.rankTrend = 0; continue }
-      const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+      const prevRank = entries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
       entry.rankTrend = prevRank - entry.rank
     }
 
@@ -95,7 +89,7 @@ async function LeaderboardData({ userId }: { userId: string }) {
     me = {
       id: userId,
       name: profile?.name ?? '',
-      stats: stat ? { rr: stat.rr, isRevealed: stat.isRevealed } : null,
+      stats: stat ? { rr: stat.rr } : null,
       rank,
     }
   }

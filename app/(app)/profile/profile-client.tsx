@@ -6,15 +6,16 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { getSkillTier } from '@/lib/mock-data'
-import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2 } from 'lucide-react'
+import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import type { Season } from '@/lib/types'
+import type { Season, AllTimeStats } from '@/lib/types'
 
 type UserProfile = {
   id: string
@@ -26,7 +27,6 @@ type UserProfile = {
     gamesPlayed: number
     wins: number
     losses: number
-    isRevealed: boolean
   } | null
   rank: number | null
 }
@@ -40,16 +40,16 @@ interface Props {
   initialProfile: UserProfile
   initialSeasonId: string | null
   initialSeasons: Season[]
+  initialAllTime: AllTimeStats
 }
 
-export default function ProfileClient({ initialProfile, initialSeasonId, initialSeasons }: Props) {
+export default function ProfileClient({ initialProfile, initialSeasonId, initialSeasons, initialAllTime }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile)
+  const [allTime] = useState<AllTimeStats>(initialAllTime)
   const [loadingSeason, setLoadingSeason] = useState(false)
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  // Tracks which season the currently displayed profile data belongs to.
-  // Used to skip a redundant re-fetch when the selector confirms the initial season.
   const loadedSeasonId = useRef<string | null>(initialSeasonId)
 
   const fetchProfile = useCallback(async (sid: string) => {
@@ -66,7 +66,6 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     setSeasonId(sid)
     if (sid && sid !== loadedSeasonId.current) fetchProfile(sid)
   }
-
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -106,13 +105,12 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   }
 
   const stats = profile.stats
-  const isRevealed = stats?.isRevealed ?? false
-  const rr = isRevealed ? (stats?.rr ?? 800) : 800
+  const rr = stats?.rr ?? 0
   const gamesPlayed = stats?.gamesPlayed ?? 0
   const wins = stats?.wins ?? 0
-  const unranked = !isRevealed || gamesPlayed < 5
   const tier = getSkillTier(rr)
   const winRate = getWinRate(wins, gamesPlayed)
+  const allTimeTier = getSkillTier(allTime.peakRR)
 
   return (
     <div className="space-y-6">
@@ -122,12 +120,6 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
           <h1 className="text-2xl font-bold">Profile</h1>
           <p className="text-sm text-muted-foreground">Your stats and match history</p>
         </div>
-        <SeasonSelector
-          value={seasonId}
-          onChange={handleSeasonChange}
-          className="w-44"
-          initialSeasons={initialSeasons}
-        />
       </div>
 
       {/* Profile Card */}
@@ -162,7 +154,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
             <div className="flex-1 text-center sm:text-left">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
                 <h2 className="text-2xl font-bold">{profile.name}</h2>
-                {unranked ? (
+                {gamesPlayed === 0 ? (
                   <Badge variant="secondary">Unranked</Badge>
                 ) : (
                   <Badge className={cn(tier.color, 'bg-secondary border-0')}>
@@ -174,13 +166,13 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
               <div className="mt-4 flex justify-center gap-6 sm:justify-start">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-primary">
-                    {unranked ? '—' : rr}
+                    {gamesPlayed > 0 ? rr : '—'}
                   </p>
                   <p className="text-xs text-muted-foreground">RR</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold">
-                    {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
+                    {profile.rank != null ? `#${profile.rank}` : '—'}
                   </p>
                   <p className="text-xs text-muted-foreground">Rank</p>
                 </div>
@@ -194,79 +186,173 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
         </CardContent>
       </Card>
 
-      {/* Stats Grid */}
-      {loadingSeason ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
+      {/* Tabs: This Season / All Time */}
+      <Tabs defaultValue="season">
+        <div className="flex items-center justify-between gap-4">
+          <TabsList>
+            <TabsTrigger value="season">This Season</TabsTrigger>
+            <TabsTrigger value="alltime">All Time</TabsTrigger>
+          </TabsList>
+          <SeasonSelector
+            value={seasonId}
+            onChange={handleSeasonChange}
+            className="w-44"
+            initialSeasons={initialSeasons}
+          />
         </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
-                <Trophy className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {profile.rank != null && isRevealed ? `#${profile.rank}` : '—'}
-                </p>
-                <p className="text-xs text-muted-foreground">Global Rank</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
-                <Gamepad2 className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{gamesPlayed}</p>
-                <p className="text-xs text-muted-foreground">Games Played</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
-                <Target className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{wins}</p>
-                <p className="text-xs text-muted-foreground">Total Wins</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="flex items-center gap-4 p-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
-                <TrendingUp className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{unranked ? '—' : rr}</p>
-                <p className="text-xs text-muted-foreground">Current RR</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
-      {/* Match History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Match History</CardTitle>
-          <CardDescription>All your recorded matches</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="py-8 text-center">
-            <p className="text-muted-foreground">No matches played yet</p>
-            <Link href="/submit-match">
-              <Button className="mt-4">Submit your first match</Button>
-            </Link>
+        {/* Season Stats */}
+        <TabsContent value="season" className="mt-4 space-y-4">
+          {loadingSeason ? (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-24 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Card>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                    <Trophy className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">
+                      {profile.rank != null ? `#${profile.rank}` : '—'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Global Rank</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                    <Gamepad2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{gamesPlayed}</p>
+                    <p className="text-xs text-muted-foreground">Games Played</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                    <Target className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{wins}</p>
+                    <p className="text-xs text-muted-foreground">Wins</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="flex items-center gap-4 p-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                    <TrendingUp className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{gamesPlayed > 0 ? rr : '—'}</p>
+                    <p className="text-xs text-muted-foreground">Current RR</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Match History</CardTitle>
+              <CardDescription>All your recorded matches this season</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="py-8 text-center">
+                <p className="text-muted-foreground">No matches played yet</p>
+                <Link href="/submit-match">
+                  <Button className="mt-4">Submit your first match</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* All-Time Stats */}
+        <TabsContent value="alltime" className="mt-4 space-y-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-500/20">
+                  <Star className="h-6 w-6 text-yellow-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{allTime.peakRR}</p>
+                  <p className="text-xs text-muted-foreground">Peak RR</p>
+                  <p className={cn('text-xs font-medium', allTimeTier.color)}>{allTimeTier.name}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                  <Gamepad2 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{allTime.totalGames}</p>
+                  <p className="text-xs text-muted-foreground">Total Games</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-500/20">
+                  <Target className="h-6 w-6 text-green-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{allTime.totalWins}</p>
+                  <p className="text-xs text-muted-foreground">Total Wins</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-500/20">
+                  <TrendingUp className="h-6 w-6 text-red-500 rotate-180" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{allTime.totalLosses}</p>
+                  <p className="text-xs text-muted-foreground">Total Losses</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/20">
+                  <BarChart3 className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    {allTime.totalGames > 0
+                      ? `${Math.round((allTime.totalWins / allTime.totalGames) * 100)}%`
+                      : '—'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">All-Time Win Rate</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="flex items-center gap-4 p-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-500/20">
+                  <Award className="h-6 w-6 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{allTime.seasonsPlayed}</p>
+                  <p className="text-xs text-muted-foreground">Seasons Played</p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

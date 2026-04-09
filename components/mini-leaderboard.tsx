@@ -50,9 +50,8 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
       <div className="space-y-1">
         {entries.map(entry => {
           const isMe = entry.userId === currentUserId
-          const unranked = !entry.isRevealed
           const tier = getSkillTier(entry.rr)
-          const rankStyle = entry.rank != null ? getRankStyle(entry.rank) : { bg: 'bg-secondary', text: 'text-muted-foreground' }
+          const rankStyle = getRankStyle(entry.rank)
           const href = isMe ? '/profile' : `/players/${entry.userId}`
 
           return (
@@ -72,7 +71,7 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
                 'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold',
                 rankStyle.bg, rankStyle.text
               )}>
-                {entry.rank == null ? '—' : entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
+                {entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
               </div>
 
               {/* Avatar */}
@@ -95,14 +94,14 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
                     </Badge>
                   )}
                 </div>
-                <span className={cn('text-xs', unranked ? 'text-muted-foreground' : tier.color)}>
-                  {unranked ? 'Unranked' : tier.name}
+                <span className={cn('text-xs', entry.gamesPlayed === 0 ? 'text-muted-foreground' : tier.color)}>
+                  {entry.gamesPlayed === 0 ? 'Unranked' : tier.name}
                 </span>
               </div>
 
               {/* RR + trend */}
               <div className="flex shrink-0 items-center gap-1.5 text-right">
-                {!unranked && entry.rankTrend != null && entry.rankTrend !== 0 && (
+                {entry.rankTrend != null && entry.rankTrend !== 0 && (
                   <span className={cn(
                     'flex items-center gap-0.5 text-[10px] font-semibold',
                     entry.rankTrend > 0 ? 'text-green-500' : 'text-red-500'
@@ -114,14 +113,8 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
                   </span>
                 )}
                 <div>
-                  {unranked ? (
-                    <p className="text-xs text-muted-foreground">Hidden</p>
-                  ) : (
-                    <>
-                      <p className="text-sm font-bold text-primary">{entry.rr}</p>
-                      <p className="text-[10px] text-muted-foreground">RR</p>
-                    </>
-                  )}
+                  <p className="text-sm font-bold text-primary">{entry.rr}</p>
+                  <p className="text-[10px] text-muted-foreground">RR</p>
                 </div>
               </div>
             </Link>

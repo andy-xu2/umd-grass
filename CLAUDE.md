@@ -19,8 +19,9 @@ A progressive web app (PWA) for the UMD grass volleyball community. It tracks do
 ## Key Invariants — Never Violate These
 - **Never show RR gain/loss until a match is `confirmed`** — pending matches show "Pending verification" instead
 - **ELO is only calculated after the opposing team verifies a match** — not on submission
-- **Rank is hidden for the first 5 confirmed matches each season** — `isRevealed` flips after game 5
+- **RR is always visible** — no hidden period, no `isRevealed` flag
 - **Only a player from the opposing team can verify a match** — never the submitting team
+- **Admin can adjust RR directly, delete confirmed matches (reversing RR), or edit match scores (recalculating RR)**
 - **Admin-only routes** are protected by checking the user's ID against a hardcoded admin ID (not a role column)
 
 ## ELO Formula
@@ -48,10 +49,10 @@ New player starting RR: **800** (hidden until 5 games played)
 
 ## Season System
 - Seasons are annual, admin-triggered (no automatic reset)
-- On new season: all players revert to Unranked, `gamesPlayed = 0`, `isRevealed = false`
-- Hidden MMR carries over from previous season with **20% decay toward 800**
-  - Formula: `newHiddenMmr = prevRR + 0.8 * (prevRR - 800)` → decays toward 800
-- First season: admin manually sets each player's `hiddenMmr`
+- On new season: all players' RR decays **2 ranks** (subtract 1000 RR, floor 0)
+  - Exception: if prevRR > 2500 → new RR = 1500 (bottom of Platinum)
+- No hidden MMR — RR is always visible to everyone
+- `gamesPlayed` resets to 0 each season
 
 ## Match Flow
 1. Player A submits match (partner, opponents, score)

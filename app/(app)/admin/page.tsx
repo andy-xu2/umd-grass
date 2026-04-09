@@ -40,11 +40,9 @@ export default async function AdminPage() {
           ? {
               id: s.id,
               rr: s.rr,
-              hiddenMmr: s.hiddenMmr,
               gamesPlayed: s.gamesPlayed,
               wins: s.wins,
               losses: s.losses,
-              isRevealed: s.isRevealed,
             }
           : null,
       }

@@ -42,11 +42,9 @@ export interface MatchResponse {
 export interface SeasonStatsShape {
   id: string
   rr: number
-  hiddenMmr: number
   gamesPlayed: number
   wins: number
   losses: number
-  isRevealed: boolean
 }
 
 export interface UserWithStats {
@@ -59,7 +57,7 @@ export interface UserWithStats {
 }
 
 export interface LeaderboardEntry {
-  rank: number | null   // null when isRevealed = false (< 5 games)
+  rank: number
   /** Positive = moved up N spots since last match, negative = moved down, 0 = unchanged, null = no previous match */
   rankTrend: number | null
   userId: string
@@ -69,7 +67,14 @@ export interface LeaderboardEntry {
   gamesPlayed: number
   wins: number
   losses: number
-  isRevealed: boolean
+}
+
+export interface AllTimeStats {
+  totalGames: number
+  totalWins: number
+  totalLosses: number
+  peakRR: number
+  seasonsPlayed: number
 }
 
 export interface LeaderboardResponse {

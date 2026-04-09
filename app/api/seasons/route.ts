@@ -4,9 +4,9 @@
 // Season creation:
 //  1. Deactivate the current active season (set isActive=false, endedAt=now)
 //  2. Collect every player's rr from the old season
-//  3. Decay: newHiddenMmr = round(800 + 0.8 * (prevRR - 800))
+//  3. Decay 2 ranks: if prevRR > 2500 → 1500, else max(0, prevRR - 1000)
 //  4. Create the new season (isActive=true)
-//  5. Pre-seed season_stats rows with decayed hiddenMmr (rr starts at 800, hidden until 5 games)
+//  5. Pre-seed season_stats rows with decayed RR
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
@@ -84,17 +84,17 @@ export async function POST(request: Request) {
     newSeasonId = newSeason.id
 
     if (prevStats.length > 0) {
-      // Seed stats with decayed hiddenMmr for players from last season
+      // Seed stats with 2-rank-decayed RR for players from last season.
+      // If prevRR > 2500 → cap at 1500 (bottom of Platinum).
+      // Otherwise drop 2 tiers (1000 RR), floor at 0.
       await tx.insert(seasonStats).values(
         prevStats.map(s => ({
           userId: s.userId,
           seasonId: newSeason.id,
-          rr: 800,
-          hiddenMmr: Math.max(0, Math.round(800 + 0.8 * (s.rr - 800))),
+          rr: s.rr > 2500 ? 1500 : Math.max(0, s.rr - 1000),
           gamesPlayed: 0,
           wins: 0,
           losses: 0,
-          isRevealed: false,
         })),
       )
     } else {
@@ -106,11 +106,9 @@ export async function POST(request: Request) {
             userId: u.id,
             seasonId: newSeason.id,
             rr: 800,
-            hiddenMmr: 800,
             gamesPlayed: 0,
             wins: 0,
             losses: 0,
-            isRevealed: false,
           })),
         )
       }

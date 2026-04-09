@@ -50,11 +50,9 @@ export default async function PlayersPage() {
             ? {
                 id: s.id,
                 rr: s.rr,
-                hiddenMmr: s.hiddenMmr,
                 gamesPlayed: s.gamesPlayed,
                 wins: s.wins,
                 losses: s.losses,
-                isRevealed: s.isRevealed,
               }
             : null,
         }

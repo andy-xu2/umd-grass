@@ -3,7 +3,7 @@
 //
 // Only a player from the opposing team (team2) may call this.
 // On confirm: ELO is calculated for all 4 players, season_stats updated,
-//             rr_changes inserted, and isRevealed flipped after 5 games.
+//             rr_changes inserted.
 // On reject:  match status set to REJECTED.
 
 import { NextResponse } from 'next/server'
@@ -81,11 +81,9 @@ export async function PATCH(
           userId,
           seasonId: activeSeason.id,
           rr: 800,
-          hiddenMmr: 800,
           gamesPlayed: 0,
           wins: 0,
           losses: 0,
-          isRevealed: false,
         })
         .returning()
       return created
@@ -136,11 +134,9 @@ export async function PATCH(
         .update(seasonStats)
         .set({
           rr: newRr,
-          hiddenMmr: newRr,
           gamesPlayed: newGames,
           wins: won ? stats.wins + 1 : stats.wins,
           losses: won ? stats.losses : stats.losses + 1,
-          isRevealed: stats.isRevealed || newGames >= 5,
         })
         .where(eq(seasonStats.id, stats.id))
 

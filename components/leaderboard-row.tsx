@@ -21,9 +21,8 @@ function getRankDisplay(rank: number) {
 
 export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
   const tier = getSkillTier(entry.rr)
-  const unranked = !entry.isRevealed
   const isCurrentUser = entry.userId === currentUserId
-  const rankDisplay = entry.rank != null ? getRankDisplay(entry.rank) : { bg: 'bg-secondary', text: 'text-muted-foreground' }
+  const rankDisplay = getRankDisplay(entry.rank)
   const href = isCurrentUser ? '/profile' : `/players/${entry.userId}`
 
   return (
@@ -36,7 +35,7 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
         rankDisplay.bg,
         rankDisplay.text
       )}>
-        {entry.rank == null ? '—' : entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
+        {entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
       </div>
 
       <Avatar className="h-10 w-10 border border-border">
@@ -58,11 +57,7 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {unranked ? (
-            <span className="text-xs text-muted-foreground">Unranked</span>
-          ) : (
-            <span className={cn('text-xs font-medium', tier.color)}>{tier.name}</span>
-          )}
+          <span className={cn('text-xs font-medium', tier.color)}>{tier.name}</span>
           <span className="text-xs text-muted-foreground">
             {entry.gamesPlayed} games
           </span>
@@ -70,8 +65,7 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Rank trend */}
-        {!unranked && entry.rankTrend != null && entry.rankTrend !== 0 && (
+        {entry.rankTrend != null && entry.rankTrend !== 0 && (
           <div className={cn(
             'flex items-center gap-0.5 text-xs font-semibold',
             entry.rankTrend > 0 ? 'text-green-500' : 'text-red-500'
@@ -84,19 +78,13 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
             <span>{Math.abs(entry.rankTrend)}</span>
           </div>
         )}
-        {!unranked && entry.rankTrend === 0 && (
+        {entry.rankTrend === 0 && (
           <Minus className="h-3.5 w-3.5 text-muted-foreground/50" />
         )}
 
         <div className="text-right">
-          {unranked ? (
-            <p className="text-sm text-muted-foreground">Hidden</p>
-          ) : (
-            <>
-              <p className="text-xl font-bold text-primary">{entry.rr}</p>
-              <p className="text-xs text-muted-foreground">RR</p>
-            </>
-          )}
+          <p className="text-xl font-bold text-primary">{entry.rr}</p>
+          <p className="text-xs text-muted-foreground">RR</p>
         </div>
       </div>
     </Link>

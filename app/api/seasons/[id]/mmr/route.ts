@@ -1,6 +1,6 @@
 // PATCH /api/seasons/[id]/mmr
-// Admin: upsert the hiddenMmr for a single player in a specific season.
-// Body: { userId: string, hiddenMmr: number }
+// Admin: set a player's RR directly for a specific season.
+// Body: { userId: string, rr: number }
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
@@ -22,11 +22,11 @@ export async function PATCH(
   }
 
   const { id: seasonId } = await params
-  const body = await request.json() as { userId?: string; hiddenMmr?: number }
+  const body = await request.json() as { userId?: string; rr?: number }
 
-  if (!body.userId || typeof body.hiddenMmr !== 'number' || body.hiddenMmr < 0) {
+  if (!body.userId || typeof body.rr !== 'number' || body.rr < 0) {
     return NextResponse.json(
-      { error: 'userId and hiddenMmr (non-negative number) are required' },
+      { error: 'userId and rr (non-negative number) are required' },
       { status: 400 },
     )
   }
@@ -39,7 +39,7 @@ export async function PATCH(
   if (existing) {
     const [updated] = await db
       .update(seasonStats)
-      .set({ hiddenMmr: body.hiddenMmr })
+      .set({ rr: body.rr })
       .where(eq(seasonStats.id, existing.id))
       .returning()
     return NextResponse.json(updated)
@@ -50,12 +50,10 @@ export async function PATCH(
     .values({
       userId: body.userId,
       seasonId,
-      rr: 800,
-      hiddenMmr: body.hiddenMmr,
+      rr: body.rr,
       gamesPlayed: 0,
       wins: 0,
       losses: 0,
-      isRevealed: false,
     })
     .returning()
 

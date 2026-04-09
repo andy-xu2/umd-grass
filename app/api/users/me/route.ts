@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase-server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'
-import { eq, and, gt, count } from 'drizzle-orm'
+import { eq, and, gt, count, desc } from 'drizzle-orm'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -43,19 +43,16 @@ export async function GET(request: NextRequest) {
     if (seasonStat) {
       stats = seasonStat
 
-      if (seasonStat.isRevealed) {
-        const [{ value }] = await db
-          .select({ value: count() })
-          .from(seasonStats)
-          .where(
-            and(
-              eq(seasonStats.seasonId, resolvedSeasonId),
-              eq(seasonStats.isRevealed, true),
-              gt(seasonStats.rr, seasonStat.rr),
-            ),
-          )
-        rank = Number(value) + 1
-      }
+      const [{ value }] = await db
+        .select({ value: count() })
+        .from(seasonStats)
+        .where(
+          and(
+            eq(seasonStats.seasonId, resolvedSeasonId),
+            gt(seasonStats.rr, seasonStat.rr),
+          ),
+        )
+      rank = Number(value) + 1
     }
   }
 
