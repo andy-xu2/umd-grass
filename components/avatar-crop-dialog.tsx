@@ -61,7 +61,7 @@ export function AvatarCropDialog({ imageSrc, onConfirm, onCancel }: Props) {
           <DialogTitle>Adjust Profile Photo</DialogTitle>
         </DialogHeader>
 
-        <div className="relative h-72 w-full bg-black">
+        <div className="relative h-56 w-full bg-black sm:h-72">
           <Cropper
             image={imageSrc}
             crop={crop}

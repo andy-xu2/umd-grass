@@ -7,7 +7,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import { getSkillTier, isUnranked } from '@/lib/mock-data'
 import { Camera, Trash2, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
@@ -51,6 +50,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [avatarKey, setAvatarKey] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const loadedSeasonId = useRef<string | null>(initialSeasonId)
 
@@ -90,6 +90,13 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
 
     if (res.ok) {
       const { avatarUrl } = await res.json()
+      // Preload before swapping so the new image appears instantly, no fallback flash
+      await new Promise<void>(resolve => {
+        const img = new Image()
+        img.onload = () => resolve()
+        img.onerror = () => resolve()
+        img.src = avatarUrl
+      })
       setProfile(prev => ({ ...prev, avatarUrl }))
       toast.success('Profile photo updated')
     } else {
@@ -108,6 +115,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     const res = await fetch('/api/users/me/avatar', { method: 'DELETE' })
 
     if (res.ok) {
+      setAvatarKey(k => k + 1) // remount Avatar so fallback renders immediately
       setProfile(prev => ({ ...prev, avatarUrl: null }))
       toast.success('Profile photo removed')
     } else {
@@ -140,45 +148,47 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
         <CardContent className="p-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
             <div className="relative">
-              <Avatar key={profile.avatarUrl ?? 'fallback'} className="h-24 w-24 border-4 border-primary/20">
+              <Avatar key={avatarKey} className="h-24 w-24 border-4 border-primary/20">
                 {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt={profile.name} />}
                 <AvatarFallback className="bg-secondary text-3xl font-bold">
                   {getInitials(profile.name)}
                 </AvatarFallback>
               </Avatar>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    disabled={isUploadingAvatar}
-                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    {isUploadingAvatar
-                      ? <Loader2 className="h-4 w-4 animate-spin" />
-                      : <Camera className="h-4 w-4" />
-                    }
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-                    <Camera className="mr-2 h-4 w-4" />
-                    Upload photo
-                  </DropdownMenuItem>
-                  {profile.avatarUrl && (
-                    <DropdownMenuItem onClick={handleRemoveAvatar} className="text-destructive focus:text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Remove photo
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+
+              {/* Camera button — label directly connected to input so iOS fires the picker synchronously */}
+              <label
+                htmlFor="avatar-upload"
+                className={cn(
+                  'absolute bottom-0 right-0 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors',
+                  isUploadingAvatar ? 'pointer-events-none opacity-50' : 'hover:bg-primary/90',
+                )}
+              >
+                {isUploadingAvatar
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Camera className="h-4 w-4" />
+                }
+              </label>
               <input
+                id="avatar-upload"
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={handleFileSelected}
               />
+
+              {/* Trash button — only shown when avatar exists */}
+              {profile.avatarUrl && !isUploadingAvatar && (
+                <button
+                  onClick={handleRemoveAvatar}
+                  className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                  aria-label="Remove photo"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              )}
             </div>
+
             {cropSrc && (
               <AvatarCropDialog
                 imageSrc={cropSrc}
