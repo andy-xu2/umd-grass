@@ -4,7 +4,7 @@
 // Season creation:
 //  1. Deactivate the current active season (set isActive=false, endedAt=now)
 //  2. Collect every player's rr from the old season
-//  3. Decay 2 ranks: if prevRR > 2500 → 1500, else max(0, prevRR - 1000)
+//  3. Apply progressive decay via applySeasonDecay() — higher ranks lose more
 //  4. Create the new season (isActive=true)
 //  5. Pre-seed season_stats rows with decayed RR
 
@@ -15,6 +15,7 @@ import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq, desc } from 'drizzle-orm'
 import type { Season } from '@/lib/types'
 import { isAdmin } from '@/lib/utils'
+import { applySeasonDecay } from '@/lib/elo'
 
 export async function GET() {
   const supabase = await createClient()
@@ -88,28 +89,28 @@ export async function POST(request: Request) {
     newSeasonId = newSeason.id
 
     if (prevStats.length > 0) {
-      // Seed stats with 2-rank-decayed RR for players from last season.
-      // If prevRR > 2500 → cap at 1500 (bottom of Platinum).
-      // Otherwise drop 2 tiers (1000 RR), floor at 0.
+      // Apply progressive decay: higher-ranked players lose more RR than lower-ranked
+      // players, compressing the field at the start of each new season.
       await tx.insert(seasonStats).values(
         prevStats.map(s => ({
           userId: s.userId,
           seasonId: newSeason.id,
-          rr: s.rr > 2500 ? 1500 : Math.max(0, s.rr - 1000),
+          rr: applySeasonDecay(s.rr),
           gamesPlayed: 0,
           wins: 0,
           losses: 0,
         })),
       )
     } else {
-      // First season ever — seed all existing users at 800
+      // First season ever — everyone starts at 0 RR.
+      // Placement games use a large K multiplier so skill levels spread quickly.
       const allUsers = await tx.select({ id: users.id }).from(users)
       if (allUsers.length > 0) {
         await tx.insert(seasonStats).values(
           allUsers.map(u => ({
             userId: u.id,
             seasonId: newSeason.id,
-            rr: 800,
+            rr: 0,
             gamesPlayed: 0,
             wins: 0,
             losses: 0,

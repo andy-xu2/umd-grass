@@ -11,7 +11,13 @@ import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches, seasonStats, rrChanges, seasons } from '@/drizzle/schema'
 import { eq, and } from 'drizzle-orm'
-import { calculateRrChange } from '@/lib/elo'
+import {
+  calculateRrChange,
+  PLACEMENT_GAMES,
+  PLACEMENT_WIN_K,
+  PLACEMENT_LOSS_K,
+  PLACEMENT_RR_CAP,
+} from '@/lib/elo'
 
 export async function PATCH(
   request: Request,
@@ -65,6 +71,16 @@ export async function PATCH(
   ] as const
 
   await db.transaction(async tx => {
+    // Determine if this is the very first season (no ended seasons yet).
+    // First-season: everyone starts at 0 RR.
+    // Future seasons: players new to the app start at 800.
+    const endedSeasons = await tx
+      .select({ id: seasons.id })
+      .from(seasons)
+      .where(eq(seasons.isActive, false))
+    const isFirstSeason = endedSeasons.length === 0
+    const startingRR = isFirstSeason ? 0 : 800
+
     // Get or create season_stats for each player
     async function getOrCreate(userId: string) {
       const [existing] = await tx
@@ -80,7 +96,7 @@ export async function PATCH(
         .values({
           userId,
           seasonId: activeSeason.id,
-          rr: 800,
+          rr: startingRR,
           gamesPlayed: 0,
           wins: 0,
           losses: 0,
@@ -89,14 +105,41 @@ export async function PATCH(
       return created
     }
 
+    // Count a player's total confirmed games across ALL seasons by looking at
+    // rr_changes (one row per player per confirmed match). We stop scanning at
+    // PLACEMENT_GAMES rows since we only need to know whether they've finished
+    // placement or not.
+    async function getLifetimeGames(userId: string): Promise<number> {
+      const rows = await tx
+        .select({ id: rrChanges.id })
+        .from(rrChanges)
+        .where(eq(rrChanges.userId, userId))
+        .limit(PLACEMENT_GAMES)
+      return rows.length
+    }
+
     const [t1p1Stats, t1p2Stats, t2p1Stats, t2p2Stats] = await Promise.all(
       playerIds.map(getOrCreate),
     )
 
-    const team1Won = match.team1Sets > match.team2Sets
-    const setMargin = Math.abs(match.team1Sets - match.team2Sets)
+    // Lifetime games are queried BEFORE this match's rr_changes are inserted,
+    // so the count correctly represents games played prior to this one.
+    const [t1p1Lifetime, t1p2Lifetime, t2p1Lifetime, t2p2Lifetime] = await Promise.all(
+      playerIds.map(getLifetimeGames),
+    )
 
-    // Compute point differential from per-set scores (winner minus loser)
+    // Placement K: new players (< PLACEMENT_GAMES career games) get a large K
+    // on wins so they rise quickly, and double the normal K on losses so placement
+    // is high-stakes. Returns undefined once placement is complete (uses default K).
+    function placementK(lifetimeGames: number, won: boolean): number | undefined {
+      if (lifetimeGames >= PLACEMENT_GAMES) return undefined
+      return won ? PLACEMENT_WIN_K : PLACEMENT_LOSS_K
+    }
+
+    const team1Won = match.team1Sets > match.team2Sets
+    const totalSets = match.team1Sets + match.team2Sets
+
+    // Compute point differential from per-set scores (|team1Total − team2Total|)
     let pointDiff: number | undefined
     if (match.setScores && Array.isArray(match.setScores)) {
       const sets = match.setScores as Array<{ team1: number; team2: number }>
@@ -105,10 +148,13 @@ export async function PATCH(
       pointDiff = Math.abs(team1Total - team2Total)
     }
 
-    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin, pointDiff)
-    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Won, setMargin, pointDiff)
-    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin, pointDiff)
-    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, !team1Won, setMargin, pointDiff)
+    // Each player's delta uses their team's sets won as the "actual" score.
+    // This means heavy favourites who barely win 2-1 get penalised (negative delta),
+    // while the underdog who took that set gets rewarded even in defeat.
+    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p1Lifetime, team1Won))
+    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p2Lifetime, team1Won))
+    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p1Lifetime, !team1Won))
+    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p2Lifetime, !team1Won))
 
     const now = new Date()
 
@@ -119,15 +165,27 @@ export async function PATCH(
       .where(eq(matches.id, id))
 
     // Apply stats + record rr_changes for each player
-    const updates: Array<{ stats: typeof t1p1Stats; delta: number; won: boolean }> = [
-      { stats: t1p1Stats, delta: t1p1Delta, won: team1Won },
-      { stats: t1p2Stats, delta: t1p2Delta, won: team1Won },
-      { stats: t2p1Stats, delta: t2p1Delta, won: !team1Won },
-      { stats: t2p2Stats, delta: t2p2Delta, won: !team1Won },
+    const updates: Array<{
+      stats: typeof t1p1Stats
+      delta: number
+      won: boolean
+      lifetimeGames: number
+    }> = [
+      { stats: t1p1Stats, delta: t1p1Delta, won: team1Won,  lifetimeGames: t1p1Lifetime },
+      { stats: t1p2Stats, delta: t1p2Delta, won: team1Won,  lifetimeGames: t1p2Lifetime },
+      { stats: t2p1Stats, delta: t2p1Delta, won: !team1Won, lifetimeGames: t2p1Lifetime },
+      { stats: t2p2Stats, delta: t2p2Delta, won: !team1Won, lifetimeGames: t2p2Lifetime },
     ]
 
-    for (const { stats, delta, won } of updates) {
-      const newRr = Math.max(0, stats.rr + delta)
+    for (const { stats, delta, won, lifetimeGames } of updates) {
+      let newRr = Math.max(0, stats.rr + delta)
+
+      // During placement, cap RR at the top of Gold so a new player can't
+      // rocket past veterans on a lucky placement run.
+      if (lifetimeGames < PLACEMENT_GAMES) {
+        newRr = Math.min(newRr, PLACEMENT_RR_CAP)
+      }
+
       const newGames = stats.gamesPlayed + 1
 
       await tx
