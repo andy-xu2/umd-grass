@@ -10,13 +10,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches, seasonStats, rrChanges, seasons } from '@/drizzle/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, ne, desc } from 'drizzle-orm'
 import {
   calculateRrChange,
+  applySeasonDecay,
   PLACEMENT_GAMES,
   PLACEMENT_WIN_K,
   PLACEMENT_LOSS_K,
   PLACEMENT_RR_CAP,
+  SEASONAL_PLACEMENT_WIN_K,
+  SEASONAL_PLACEMENT_LOSS_K,
 } from '@/lib/elo'
 
 export async function PATCH(
@@ -71,17 +74,10 @@ export async function PATCH(
   ] as const
 
   await db.transaction(async tx => {
-    // Determine if this is the very first season (no ended seasons yet).
-    // First-season: everyone starts at 0 RR.
-    // Future seasons: players new to the app start at 800.
-    const endedSeasons = await tx
-      .select({ id: seasons.id })
-      .from(seasons)
-      .where(eq(seasons.isActive, false))
-    const isFirstSeason = endedSeasons.length === 0
-    const startingRR = isFirstSeason ? 0 : 800
-
-    // Get or create season_stats for each player
+    // Get or create season_stats for each player.
+    // New players (no prior seasons) start at 0 RR.
+    // Players joining a new season mid-season start at their decayed RR from
+    // their most recent previous season (same logic as the season-creation flow).
     async function getOrCreate(userId: string) {
       const [existing] = await tx
         .select()
@@ -90,6 +86,17 @@ export async function PATCH(
           and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, activeSeason.id)),
         )
       if (existing) return existing
+
+      // Find the most recent previous season stats for this player
+      const [prevStats] = await tx
+        .select({ rr: seasonStats.rr })
+        .from(seasonStats)
+        .innerJoin(seasons, eq(seasonStats.seasonId, seasons.id))
+        .where(and(eq(seasonStats.userId, userId), ne(seasonStats.seasonId, activeSeason.id)))
+        .orderBy(desc(seasons.startedAt))
+        .limit(1)
+
+      const startingRR = prevStats ? applySeasonDecay(prevStats.rr) : 0
 
       const [created] = await tx
         .insert(seasonStats)
@@ -128,12 +135,18 @@ export async function PATCH(
       playerIds.map(getLifetimeGames),
     )
 
-    // Placement K: new players (< PLACEMENT_GAMES career games) get a large K
-    // on wins so they rise quickly, and double the normal K on losses so placement
-    // is high-stakes. Returns undefined once placement is complete (uses default K).
-    function placementK(lifetimeGames: number, won: boolean): number | undefined {
-      if (lifetimeGames >= PLACEMENT_GAMES) return undefined
-      return won ? PLACEMENT_WIN_K : PLACEMENT_LOSS_K
+    // Placement K selection:
+    //   Initial placement (first 5 career games ever): large K — fast rise from 0, capped at 1500.
+    //   Seasonal placement (first 5 games of a new season, after initial is done): moderate K — no cap.
+    //   Normal: undefined (uses default K).
+    function placementK(lifetimeGames: number, seasonGamesPlayed: number, won: boolean): number | undefined {
+      if (lifetimeGames < PLACEMENT_GAMES) {
+        return won ? PLACEMENT_WIN_K : PLACEMENT_LOSS_K
+      }
+      if (seasonGamesPlayed < PLACEMENT_GAMES) {
+        return won ? SEASONAL_PLACEMENT_WIN_K : SEASONAL_PLACEMENT_LOSS_K
+      }
+      return undefined
     }
 
     const team1Won = match.team1Sets > match.team2Sets
@@ -151,10 +164,10 @@ export async function PATCH(
     // Each player's delta uses their team's sets won as the "actual" score.
     // This means heavy favourites who barely win 2-1 get penalised (negative delta),
     // while the underdog who took that set gets rewarded even in defeat.
-    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p1Lifetime, team1Won))
-    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p2Lifetime, team1Won))
-    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p1Lifetime, !team1Won))
-    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p2Lifetime, !team1Won))
+    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p1Lifetime, t1p1Stats.gamesPlayed, team1Won))
+    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p2Lifetime, t1p2Stats.gamesPlayed, team1Won))
+    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p1Lifetime, t2p1Stats.gamesPlayed, !team1Won))
+    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p2Lifetime, t2p2Stats.gamesPlayed, !team1Won))
 
     const now = new Date()
 

@@ -15,21 +15,32 @@ export const MIN_WIN_GAIN = 5
 export const PLACEMENT_GAMES = 5
 
 /**
- * K factors during placement games.
+ * K factors during a player's INITIAL 5 career placement games.
  *
- * Wins use a large K so strong players rise quickly.
+ * Starting from 0 RR, 5 wins against elite opposition should reach the 1500 cap:
+ *   5 × ~300 ≈ 1500  ✓
  * Losses use double the normal K — placement is high-stakes in both directions.
- * This asymmetry rewards confident play while punishing sloppy losses.
  */
-export const PLACEMENT_WIN_K = 200
+export const PLACEMENT_WIN_K = 300
 export const PLACEMENT_LOSS_K = K * 2 // 80 — double the normal K
 
 /**
- * Maximum RR a player can reach during their placement games.
- * Prevents a new player from rocketing past veterans on an unlikely perfect run.
- * Gold tier is 1000–1499, so 1399 caps at the top of Gold.
+ * Maximum RR a player can reach during their INITIAL career placement games.
+ * Prevents a new player from rocketing past veterans on a perfect first run.
+ * After initial placement is complete this cap no longer applies.
  */
-export const PLACEMENT_RR_CAP = 1399
+export const PLACEMENT_RR_CAP = 1500
+
+/**
+ * K factors for the FIRST 5 GAMES of each new season (seasonal placement).
+ * Applies only after a player's initial 5 career games are done.
+ *
+ * Smaller than PLACEMENT_WIN_K so the season reset isn't trivially reversed,
+ * but large enough that skilled players climb back faster than normal.
+ * No RR cap — seasonal placement can push players above 1500.
+ */
+export const SEASONAL_PLACEMENT_WIN_K = 100
+export const SEASONAL_PLACEMENT_LOSS_K = K // 40 — same as normal, no extra loss penalty
 
 /**
  * Expected score for a player against the average of two opponents.
@@ -38,6 +49,19 @@ export const PLACEMENT_RR_CAP = 1399
 export function expectedScore(playerRR: number, oppRR1: number, oppRR2: number): number {
   const opponentAvg = (oppRR1 + oppRR2) / 2
   return 1 / (1 + Math.pow(10, (opponentAvg - playerRR) / 400))
+}
+
+/**
+ * Expected score based on team averages.
+ * Compares avg(player, teammate) vs avg(opp1, opp2) rather than the
+ * individual player against the opponent average.
+ *
+ * This prevents a high-RR player from being over-punished when paired with
+ * a low-RR teammate — the expected outcome reflects the team's actual
+ * combined strength, not the star player's solo rating.
+ */
+export function expectedScoreTeam(teamAvg: number, oppAvg: number): number {
+  return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / 400))
 }
 
 /**
@@ -96,6 +120,7 @@ export function gainSoftCapMultiplier(rr: number): number {
  * games near the 3000 soft cap meaningful.
  *
  * @param playerRR      - Player's current RR
+ * @param teammateRR    - Teammate's current RR (used for team-average expected score)
  * @param oppRR1        - First opponent's current RR
  * @param oppRR2        - Second opponent's current RR
  * @param playerSetsWon - Sets won by this player's team
@@ -106,6 +131,7 @@ export function gainSoftCapMultiplier(rr: number): number {
  */
 export function calculateRrChange(
   playerRR: number,
+  teammateRR: number,
   oppRR1: number,
   oppRR2: number,
   playerSetsWon: number,
@@ -115,7 +141,19 @@ export function calculateRrChange(
 ): number {
   const effectiveK = kOverride ?? K
   const actual = playerSetsWon / totalSets
-  const expected = expectedScore(playerRR, oppRR1, oppRR2)
+
+  // Higher-ranked player: use team average — protects them from being over-punished
+  // for a weak teammate dragging down the result.
+  // Lower-ranked player: use their own RR — they shouldn't gain/lose as much as their
+  // star teammate since the result is less surprising relative to their own skill level.
+  let expected: number
+  if (playerRR >= teammateRR) {
+    const teamAvg = (playerRR + teammateRR) / 2
+    const oppAvg = (oppRR1 + oppRR2) / 2
+    expected = expectedScoreTeam(teamAvg, oppAvg)
+  } else {
+    expected = expectedScore(playerRR, oppRR1, oppRR2)
+  }
   let base = effectiveK * (actual - expected)
 
   // Soft gain cap: reduce gains (not losses) as RR approaches 3000+.

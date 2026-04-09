@@ -7,15 +7,17 @@ import {
   gainSoftCapMultiplier,
   PLACEMENT_WIN_K,
   PLACEMENT_LOSS_K,
+  SEASONAL_PLACEMENT_WIN_K,
+  SEASONAL_PLACEMENT_LOSS_K,
   MIN_WIN_GAIN,
   K,
 } from './elo'
 
-// Helper: 2-0 sweep win/loss shorthands for equal-RR tests
-const sweep = (rr: number) => calculateRrChange(rr, rr, rr, 2, 2)
-const sweepLoss = (rr: number) => calculateRrChange(rr, rr, rr, 0, 2)
-const closeWin = (rr: number) => calculateRrChange(rr, rr, rr, 2, 3)
-const closeLoss = (rr: number) => calculateRrChange(rr, rr, rr, 1, 3)
+// Helper: 2-0 sweep win/loss shorthands for equal-RR tests (teammate same RR)
+const sweep = (rr: number) => calculateRrChange(rr, rr, rr, rr, 2, 2)
+const sweepLoss = (rr: number) => calculateRrChange(rr, rr, rr, rr, 0, 2)
+const closeWin = (rr: number) => calculateRrChange(rr, rr, rr, rr, 2, 3)
+const closeLoss = (rr: number) => calculateRrChange(rr, rr, rr, rr, 1, 3)
 
 // ─── expectedScore ───────────────────────────────────────────────────────────
 
@@ -94,7 +96,7 @@ describe('calculateRrChange — equal RR matchups', () => {
   })
 
   it('output is always an integer', () => {
-    expect(Number.isInteger(calculateRrChange(850, 780, 920, 2, 3))).toBe(true)
+    expect(Number.isInteger(calculateRrChange(850, 850, 780, 920, 2, 3))).toBe(true)
   })
 })
 
@@ -102,28 +104,28 @@ describe('calculateRrChange — equal RR matchups', () => {
 
 describe('calculateRrChange — RR gap effects', () => {
   it('higher RR player sweeping weaker opponents gains fewer points than equal matchup', () => {
-    const vsWeak = calculateRrChange(1000, 600, 600, 2, 2)
+    const vsWeak = calculateRrChange(1000, 1000, 600, 600, 2, 2)
     const vsEqual = sweep(1000)
     expect(vsWeak).toBeLessThan(vsEqual)
   })
 
   it('lower RR player loses fewer points when swept by a stronger team', () => {
-    const vsStrong = calculateRrChange(800, 1200, 1200, 0, 2)
+    const vsStrong = calculateRrChange(800, 800, 1200, 1200, 0, 2)
     const vsEqual = sweepLoss(800)
     expect(Math.abs(vsStrong)).toBeLessThan(Math.abs(vsEqual))
   })
 
   it('upsets a stronger team to gain more than beating equal', () => {
-    expect(calculateRrChange(800, 1200, 1200, 2, 2)).toBeGreaterThan(sweep(800))
+    expect(calculateRrChange(800, 800, 1200, 1200, 2, 2)).toBeGreaterThan(sweep(800))
   })
 
   it('max gain approaches K on a clean upset sweep', () => {
-    const gain = calculateRrChange(100, 2000, 2000, 2, 2)
+    const gain = calculateRrChange(100, 100, 2000, 2000, 2, 2)
     expect(gain).toBeCloseTo(K, 0)
   })
 
   it('max loss approaches −K on a catastrophic upset loss', () => {
-    const loss = calculateRrChange(2000, 100, 100, 0, 2)
+    const loss = calculateRrChange(2000, 2000, 100, 100, 0, 2)
     expect(loss).toBeCloseTo(-K, 0)
   })
 })
@@ -133,37 +135,37 @@ describe('calculateRrChange — RR gap effects', () => {
 describe('calculateRrChange — heavy mismatch set-fraction behaviour', () => {
   it('heavy favourite barely winning 2-1 gets a NEGATIVE delta', () => {
     // 3000 vs 1000: expected to win everything, only won 2/3 sets
-    const delta = calculateRrChange(3000, 1000, 1000, 2, 3)
+    const delta = calculateRrChange(3000, 3000, 1000, 1000, 2, 3)
     expect(delta).toBeLessThan(0)
   })
 
   it('heavy underdog taking a set despite losing gets a POSITIVE delta', () => {
     // 1000 vs 3000: expected to win nothing, won 1/3 sets
-    const delta = calculateRrChange(1000, 3000, 3000, 1, 3)
+    const delta = calculateRrChange(1000, 1000, 3000, 3000, 1, 3)
     expect(delta).toBeGreaterThan(0)
   })
 
   it('heavy favourite sweeping gets near-zero (as expected)', () => {
     // 3000 vs 1000: expected to win everything, did exactly that
-    const delta = calculateRrChange(3000, 1000, 1000, 2, 2)
+    const delta = calculateRrChange(3000, 3000, 1000, 1000, 2, 2)
     // Should be near 0 or floored to MIN_WIN_GAIN since won + base > 0
     expect(Math.abs(delta)).toBeLessThanOrEqual(MIN_WIN_GAIN)
   })
 
   it('mismatch deltas are zero-sum per team (underdog gains ≈ favourite loses)', () => {
-    const favDelta = calculateRrChange(3000, 1000, 1000, 2, 3)   // favourite wins 2-1
-    const undDelta = calculateRrChange(1000, 3000, 3000, 1, 3)   // underdog loses 1-2
+    const favDelta = calculateRrChange(3000, 3000, 1000, 1000, 2, 3)   // favourite wins 2-1
+    const undDelta = calculateRrChange(1000, 1000, 3000, 3000, 1, 3)   // underdog loses 1-2
     // Should sum near 0 (zero-sum economy)
     expect(Math.abs(favDelta + undDelta)).toBeLessThanOrEqual(2)
   })
 
   it('upset WIN still gives near-K gain for the underdog', () => {
-    const gain = calculateRrChange(1000, 3000, 3000, 2, 2) // 1000 sweeps 3000
+    const gain = calculateRrChange(1000, 1000, 3000, 3000, 2, 2) // 1000 sweeps 3000
     expect(gain).toBeCloseTo(K, 0)
   })
 
   it('upset WIN still costs the favourite near -K', () => {
-    const loss = calculateRrChange(3000, 1000, 1000, 0, 2) // 3000 gets swept by 1000
+    const loss = calculateRrChange(3000, 3000, 1000, 1000, 0, 2) // 3000 gets swept by 1000
     expect(loss).toBeCloseTo(-K, 0)
   })
 })
@@ -172,19 +174,19 @@ describe('calculateRrChange — heavy mismatch set-fraction behaviour', () => {
 
 describe('calculateRrChange — pointDiff interaction', () => {
   it('dominant sweep (large pointDiff) gains more than a tight sweep', () => {
-    const dominant = calculateRrChange(800, 800, 800, 2, 2, 30)
-    const tight    = calculateRrChange(800, 800, 800, 2, 2, 2)
+    const dominant = calculateRrChange(800, 800, 800, 800, 2, 2, 30)
+    const tight    = calculateRrChange(800, 800, 800, 800, 2, 2, 2)
     expect(dominant).toBeGreaterThan(tight)
   })
 
   it('getting blown out (large pointDiff) loses more than losing tightly', () => {
-    const blowout = calculateRrChange(800, 800, 800, 0, 2, 30)
-    const tight   = calculateRrChange(800, 800, 800, 0, 2, 2)
+    const blowout = calculateRrChange(800, 800, 800, 800, 0, 2, 30)
+    const tight   = calculateRrChange(800, 800, 800, 800, 0, 2, 2)
     expect(Math.abs(blowout)).toBeGreaterThan(Math.abs(tight))
   })
 
   it('output is always an integer with pointDiff', () => {
-    expect(Number.isInteger(calculateRrChange(850, 780, 920, 2, 3, 15))).toBe(true)
+    expect(Number.isInteger(calculateRrChange(850, 850, 780, 920, 2, 3, 15))).toBe(true)
   })
 })
 
@@ -199,22 +201,41 @@ describe('calculateRrChange — kOverride (placement games)', () => {
     expect(PLACEMENT_WIN_K).toBeGreaterThan(PLACEMENT_LOSS_K)
   })
 
+  it('SEASONAL_PLACEMENT_WIN_K is between K and PLACEMENT_WIN_K', () => {
+    expect(SEASONAL_PLACEMENT_WIN_K).toBeGreaterThan(K)
+    expect(SEASONAL_PLACEMENT_WIN_K).toBeLessThan(PLACEMENT_WIN_K)
+  })
+
+  it('SEASONAL_PLACEMENT_LOSS_K equals normal K', () => {
+    expect(SEASONAL_PLACEMENT_LOSS_K).toBe(K)
+  })
+
   it('sweep gain scales proportionally with kOverride', () => {
     const normal    = sweep(800) // K=40
-    const placement = calculateRrChange(800, 800, 800, 2, 2, undefined, PLACEMENT_WIN_K)
+    const placement = calculateRrChange(800, 800, 800, 800, 2, 2, undefined, PLACEMENT_WIN_K)
     expect(placement / normal).toBeCloseTo(PLACEMENT_WIN_K / K, 0)
   })
 
   it('sweep loss scales proportionally with kOverride', () => {
     const normal    = sweepLoss(800)
-    const placement = calculateRrChange(800, 800, 800, 0, 2, undefined, PLACEMENT_LOSS_K)
+    const placement = calculateRrChange(800, 800, 800, 800, 0, 2, undefined, PLACEMENT_LOSS_K)
     expect(placement / normal).toBeCloseTo(PLACEMENT_LOSS_K / K, 0)
   })
 
   it('max gain with PLACEMENT_WIN_K is bounded by PLACEMENT_WIN_K', () => {
-    const gain = calculateRrChange(100, 2000, 2000, 2, 2, undefined, PLACEMENT_WIN_K)
+    const gain = calculateRrChange(100, 100, 2000, 2000, 2, 2, undefined, PLACEMENT_WIN_K)
     expect(gain).toBeLessThanOrEqual(PLACEMENT_WIN_K)
     expect(gain).toBeGreaterThan(K)
+  })
+
+  it('5 wins from 0 RR against elite opponents reaches ~1500 with PLACEMENT_WIN_K', () => {
+    let rr = 0
+    for (let i = 0; i < 5; i++) {
+      // Each game: player at current rr, teammate at 0 too (worst case), vs 2300+2300
+      const delta = calculateRrChange(rr, rr, 2300, 2300, 2, 2, undefined, PLACEMENT_WIN_K)
+      rr = Math.min(1500, rr + delta)
+    }
+    expect(rr).toBeGreaterThanOrEqual(1499) // ±1 for integer rounding per game
   })
 })
 
@@ -288,7 +309,7 @@ describe('calculateRrChange — MIN_WIN_GAIN floor', () => {
 
   it('floor does NOT apply when mismatch set-fraction rightfully gives negative delta', () => {
     // 3000 wins 2-1 against 1000 but underperformed (actual 2/3 < expected ~1)
-    const delta = calculateRrChange(3000, 1000, 1000, 2, 3)
+    const delta = calculateRrChange(3000, 3000, 1000, 1000, 2, 3)
     expect(delta).toBeLessThan(MIN_WIN_GAIN)
   })
 
@@ -304,6 +325,51 @@ describe('calculateRrChange — 3000+ break-even rates', () => {
     const gain = sweep(3000)
     const loss = Math.abs(sweepLoss(3000))
     expect(loss).toBeGreaterThan(gain * 2) // need >2× wins to compensate losses
+  })
+})
+
+// ─── calculateRrChange — mismatched team (team-average ELO) ──────────────────
+
+describe('calculateRrChange — mismatched teammate', () => {
+  it('high-RR player loses less when dragged down by a weak teammate', () => {
+    // 2000 (high) + 600 (low) vs 1200 + 1400. High player uses team avg (1300 vs 1300).
+    const withWeakTeammate = calculateRrChange(2000, 600, 1200, 1400, 0, 2)
+    // 2000 with equal teammate vs same opponents — team avg 2000 vs 1300, higher expected
+    const withStrongTeammate = calculateRrChange(2000, 2000, 1200, 1400, 0, 2)
+    expect(Math.abs(withWeakTeammate)).toBeLessThan(Math.abs(withStrongTeammate))
+  })
+
+  it('high-RR player loss uses team avg, not solo RR', () => {
+    // 2500 (high) + 200 (low) vs 700 + 900 (avg 800). Team avg = 1350.
+    const delta = calculateRrChange(2500, 200, 700, 900, 0, 2)
+    const teamExpected = 1 / (1 + Math.pow(10, (800 - 1350) / 400)) // ~0.974
+    expect(delta).toBeCloseTo(Math.round(-K * teamExpected), 0)
+  })
+
+  it('lower-ranked player loss uses their own RR, not team avg', () => {
+    // 200 (low) + 2500 (high) vs 700 + 900 (avg 800). Individual: 200 vs 800.
+    const delta = calculateRrChange(200, 2500, 700, 900, 0, 2)
+    const individualExpected = 1 / (1 + Math.pow(10, (800 - 200) / 400)) // ~0.036
+    expect(delta).toBeCloseTo(Math.round(-K * individualExpected), 0)
+  })
+
+  it('lower-ranked player loses less than higher-ranked teammate on a shared loss', () => {
+    // 2500 + 1500 vs 1750 + 1750 (avg 1750). 2500 uses team avg, 1500 uses own RR.
+    const highDelta = calculateRrChange(2500, 1500, 1750, 1750, 0, 2)
+    const lowDelta  = calculateRrChange(1500, 2500, 1750, 1750, 0, 2)
+    expect(Math.abs(highDelta)).toBeGreaterThan(Math.abs(lowDelta))
+  })
+
+  it('equal-RR teammates both use team avg (same as own RR when equal)', () => {
+    const p1Delta = calculateRrChange(1000, 1000, 1200, 1200, 0, 2)
+    const p2Delta = calculateRrChange(1000, 1000, 1200, 1200, 0, 2)
+    expect(p1Delta).toBe(p2Delta)
+  })
+
+  it('placement player (low RR) sweeping 2300+2300 team gains massive RR', () => {
+    // 0 RR player (lower) with 800 RR teammate vs 2300+2300. Uses own RR (0 vs 2300).
+    const gain = calculateRrChange(0, 800, 2300, 2300, 2, 2, undefined, PLACEMENT_WIN_K)
+    expect(gain).toBeGreaterThan(250) // near-full PLACEMENT_WIN_K since huge underdog
   })
 })
 

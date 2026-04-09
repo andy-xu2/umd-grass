@@ -101,10 +101,10 @@ export async function PATCH(
     const t2p2Pre = preMatchRr.get(match.team2Player2Id)!
 
     const newDeltas: Record<string, number> = {
-      [match.team1Player1Id]: calculateRrChange(t1p1Pre, t2p1Pre, t2p2Pre, newTeam1Sets, totalSets, pointDiff),
-      [match.team1Player2Id]: calculateRrChange(t1p2Pre, t2p1Pre, t2p2Pre, newTeam1Sets, totalSets, pointDiff),
-      [match.team2Player1Id]: calculateRrChange(t2p1Pre, t1p1Pre, t1p2Pre, newTeam2Sets, totalSets, pointDiff),
-      [match.team2Player2Id]: calculateRrChange(t2p2Pre, t1p1Pre, t1p2Pre, newTeam2Sets, totalSets, pointDiff),
+      [match.team1Player1Id]: calculateRrChange(t1p1Pre, t1p2Pre, t2p1Pre, t2p2Pre, newTeam1Sets, totalSets, pointDiff),
+      [match.team1Player2Id]: calculateRrChange(t1p2Pre, t1p1Pre, t2p1Pre, t2p2Pre, newTeam1Sets, totalSets, pointDiff),
+      [match.team2Player1Id]: calculateRrChange(t2p1Pre, t2p2Pre, t1p1Pre, t1p2Pre, newTeam2Sets, totalSets, pointDiff),
+      [match.team2Player2Id]: calculateRrChange(t2p2Pre, t2p1Pre, t1p1Pre, t1p2Pre, newTeam2Sets, totalSets, pointDiff),
     }
 
     const oldTeam1Won = match.team1Sets > match.team2Sets

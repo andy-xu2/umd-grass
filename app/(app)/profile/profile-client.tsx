@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 import { getSkillTier, isUnranked } from '@/lib/mock-data'
 import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
-import { createClient } from '@/lib/supabase-browser'
 import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -72,35 +71,21 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     if (!file) return
 
     setIsUploadingAvatar(true)
-    const supabase = createClient()
 
-    const ext = file.name.split('.').pop()
-    const path = `${profile.id}/avatar.${ext}`
+    const formData = new FormData()
+    formData.append('file', file)
 
-    const { error: uploadError } = await supabase.storage
-      .from('avatars')
-      .upload(path, file, { upsert: true })
-
-    if (uploadError) {
-      toast.error('Failed to upload avatar')
-      setIsUploadingAvatar(false)
-      return
-    }
-
-    const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-    const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
-
-    const res = await fetch('/api/users/me', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatarUrl: cacheBustedUrl }),
+    const res = await fetch('/api/users/me/avatar', {
+      method: 'POST',
+      body: formData,
     })
 
     if (res.ok) {
-      setProfile(prev => ({ ...prev, avatarUrl: cacheBustedUrl }))
+      const { avatarUrl } = await res.json()
+      setProfile(prev => ({ ...prev, avatarUrl }))
       toast.success('Avatar updated')
     } else {
-      toast.error('Failed to save avatar')
+      toast.error('Failed to upload profile pic')
     }
     if (fileInputRef.current) fileInputRef.current.value = ''
     setIsUploadingAvatar(false)
