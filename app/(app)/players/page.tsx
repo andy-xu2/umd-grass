@@ -1,64 +1,23 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, desc } from 'drizzle-orm'
-import type { UserWithStats, Season } from '@/lib/types'
+import { users } from '@/drizzle/schema'
+import { asc } from 'drizzle-orm'
 import PlayersClient from './players-client'
 
 export default async function PlayersPage() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  // Batch 1: all seasons + all users — parallel
-  const [allSeasons, allUsers] = await Promise.all([
-    db.select().from(seasons).orderBy(desc(seasons.startedAt)),
-    db.select().from(users),
-  ])
+  const allUsers = await db.select().from(users).orderBy(asc(users.name))
 
-  const seasonList: Season[] = allSeasons.map(s => ({
-    id: s.id,
-    name: s.name,
-    isActive: s.isActive,
-    startedAt: s.startedAt.toISOString(),
-    endedAt: s.endedAt?.toISOString() ?? null,
+  const players = allUsers.map(u => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    avatarUrl: u.avatarUrl,
+    createdAt: u.createdAt.toISOString(),
   }))
 
-  const seasonId = allSeasons.find(s => s.isActive)?.id ?? null
-
-  let initialPlayers: UserWithStats[]
-
-  if (!seasonId) {
-    initialPlayers = allUsers
-      .map(u => ({ ...u, createdAt: u.createdAt.toISOString(), stats: null }))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  } else {
-    const allStats = await db
-      .select()
-      .from(seasonStats)
-      .where(eq(seasonStats.seasonId, seasonId))
-
-    const statsMap = new Map(allStats.map(s => [s.userId, s]))
-
-    initialPlayers = allUsers
-      .map(u => {
-        const s = statsMap.get(u.id) ?? null
-        return {
-          ...u,
-          createdAt: u.createdAt.toISOString(),
-          stats: s
-            ? {
-                id: s.id,
-                rr: s.rr,
-                gamesPlayed: s.gamesPlayed,
-                wins: s.wins,
-                losses: s.losses,
-              }
-            : null,
-        }
-      })
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  return <PlayersClient initialPlayers={initialPlayers} initialSeasonId={seasonId} initialSeasons={seasonList} />
+  return <PlayersClient initialPlayers={players} />
 }
