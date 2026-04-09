@@ -140,7 +140,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
         <CardContent className="p-6">
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
             <div className="relative">
-              <Avatar className="h-24 w-24 border-4 border-primary/20">
+              <Avatar key={profile.avatarUrl ?? 'fallback'} className="h-24 w-24 border-4 border-primary/20">
                 {profile.avatarUrl && <AvatarImage src={profile.avatarUrl} alt={profile.name} />}
                 <AvatarFallback className="bg-secondary text-3xl font-bold">
                   {getInitials(profile.name)}
