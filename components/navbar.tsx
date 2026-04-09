@@ -57,9 +57,6 @@ export function Navbar() {
             <span className="hidden text-lg font-bold tracking-tight sm:block">
               UMD Grass Rankings
             </span>
-            <span className="text-lg font-bold tracking-tight sm:hidden">
-              UMD GR
-            </span>
           </Link>
 
           {/* Desktop Navigation */}
