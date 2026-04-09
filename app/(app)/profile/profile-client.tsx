@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { getSkillTier } from '@/lib/mock-data'
+import { getSkillTier, isUnranked } from '@/lib/mock-data'
 import { Camera, Trophy, Gamepad2, Target, TrendingUp, Loader2, Star, Award, BarChart3 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
@@ -108,6 +108,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   const rr = stats?.rr ?? 0
   const gamesPlayed = stats?.gamesPlayed ?? 0
   const wins = stats?.wins ?? 0
+  const unranked = isUnranked(gamesPlayed)
   const tier = getSkillTier(rr)
   const winRate = getWinRate(wins, gamesPlayed)
   const allTimeTier = getSkillTier(allTime.peakRR)
@@ -154,7 +155,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
             <div className="flex-1 text-center sm:text-left">
               <div className="flex flex-col items-center gap-2 sm:flex-row">
                 <h2 className="text-2xl font-bold">{profile.name}</h2>
-                {gamesPlayed === 0 ? (
+                {unranked ? (
                   <Badge variant="secondary">Unranked</Badge>
                 ) : (
                   <Badge className={cn(tier.color, 'bg-secondary border-0')}>
@@ -163,16 +164,23 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
                 )}
               </div>
               <p className="mt-1 text-muted-foreground">{profile.email}</p>
+              {unranked && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {gamesPlayed === 0
+                    ? 'Play 5 placement games to earn your rank'
+                    : `${gamesPlayed}/5 placement games completed`}
+                </p>
+              )}
               <div className="mt-4 flex justify-center gap-6 sm:justify-start">
                 <div className="text-center">
                   <p className="text-2xl font-bold text-primary">
-                    {gamesPlayed > 0 ? rr : '—'}
+                    {unranked ? '—' : rr}
                   </p>
                   <p className="text-xs text-muted-foreground">RR</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold">
-                    {profile.rank != null ? `#${profile.rank}` : '—'}
+                    {!unranked && profile.rank != null ? `#${profile.rank}` : '—'}
                   </p>
                   <p className="text-xs text-muted-foreground">Rank</p>
                 </div>
@@ -218,7 +226,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {profile.rank != null ? `#${profile.rank}` : '—'}
+                      {!unranked && profile.rank != null ? `#${profile.rank}` : '—'}
                     </p>
                     <p className="text-xs text-muted-foreground">Global Rank</p>
                   </div>
@@ -252,7 +260,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
                     <TrendingUp className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{gamesPlayed > 0 ? rr : '—'}</p>
+                    <p className="text-2xl font-bold">{unranked ? '—' : rr}</p>
                     <p className="text-xs text-muted-foreground">Current RR</p>
                   </div>
                 </CardContent>

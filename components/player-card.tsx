@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { getSkillTier, getWinRate } from '@/lib/mock-data'
+import { getSkillTier, getWinRate, isUnranked } from '@/lib/mock-data'
 import { cn, getInitials } from '@/lib/utils'
 
 export interface PlayerCardUser {
@@ -21,6 +21,7 @@ interface PlayerCardProps {
 }
 
 export function PlayerCard({ user, showStats = true, className }: PlayerCardProps) {
+  const unranked = isUnranked(user.gamesPlayed)
   const tier = getSkillTier(user.rr)
   const winRate = getWinRate(user.wins, user.gamesPlayed)
 
@@ -37,7 +38,7 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-bold">{user.name}</h3>
-              {user.gamesPlayed === 0 ? (
+              {unranked ? (
                 <Badge variant="secondary" className="text-xs">
                   Unranked
                 </Badge>
@@ -48,13 +49,17 @@ export function PlayerCard({ user, showStats = true, className }: PlayerCardProp
               )}
             </div>
             <div className="mt-1 flex items-baseline gap-1">
-              {user.gamesPlayed > 0 ? (
+              {unranked ? (
+                <span className="text-sm text-muted-foreground">
+                  {user.gamesPlayed === 0
+                    ? 'No games played yet'
+                    : `${user.gamesPlayed}/5 placement games`}
+                </span>
+              ) : (
                 <>
                   <span className="text-3xl font-bold text-primary">{user.rr}</span>
                   <span className="text-sm text-muted-foreground">RR</span>
                 </>
-              ) : (
-                <span className="text-sm text-muted-foreground">No games played yet</span>
               )}
             </div>
           </div>
