@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   Card,
   CardContent,
@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
-import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit } from 'lucide-react'
+import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
 
 interface Props {
@@ -100,6 +100,33 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [editScoreMatch, setEditScoreMatch] = useState<MatchResponse | null>(null)
   const [editScoreSets, setEditScoreSets] = useState<SetScore[]>([])
   const [isSavingScore, setIsSavingScore] = useState(false)
+
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [matchSearch, setMatchSearch] = useState('')
+
+  const filteredUsers = useMemo(() => {
+    const sorted = [...usersForSeason].sort((a, b) =>
+      (a.name ?? '').localeCompare(b.name ?? '')
+    )
+    if (!playerSearch.trim()) return sorted
+    const q = playerSearch.toLowerCase()
+    return sorted.filter(u =>
+      (u.name ?? '').toLowerCase().includes(q) ||
+      (u.email ?? '').toLowerCase().includes(q)
+    )
+  }, [usersForSeason, playerSearch])
+
+  const filteredMatches = useMemo(() => {
+    const sorted = [...matches].sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    )
+    if (!matchSearch.trim()) return sorted
+    const q = matchSearch.toLowerCase()
+    return sorted.filter(m =>
+      [m.team1Player1.name, m.team1Player2.name, m.team2Player1.name, m.team2Player2.name]
+        .some(name => name.toLowerCase().includes(q))
+    )
+  }, [matches, matchSearch])
 
   const fetchUsers = useCallback(async (sid: string) => {
     setLoadingUsers(true)
@@ -420,9 +447,20 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
               No players found for this season.
             </p>
           ) : (
-            <div className="rounded-lg border">
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search players…"
+                  value={playerSearch}
+                  onChange={e => setPlayerSearch(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <div className="rounded-lg border">
+                <div className="max-h-[520px] overflow-y-auto">
               <Table>
-                <TableHeader>
+                <TableHeader className="sticky top-0 bg-card z-10">
                   <TableRow>
                     <TableHead>Player</TableHead>
                     <TableHead className="text-right">RR</TableHead>
@@ -432,7 +470,13 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {usersForSeason.map(user => (
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                        No players match your search.
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredUsers.map(user => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
@@ -511,6 +555,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   ))}
                 </TableBody>
               </Table>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
@@ -543,7 +589,17 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
               No confirmed matches for this season.
             </p>
           ) : (
-            <div className="rounded-lg border">
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search by player name…"
+                  value={matchSearch}
+                  onChange={e => setMatchSearch(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+              <div className="rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -554,7 +610,13 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {matches.map(match => (
+                  {filteredMatches.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
+                        No matches match your search.
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredMatches.map(match => (
                     <TableRow key={match.id}>
                       <TableCell>
                         <div className="space-y-0.5">
@@ -632,6 +694,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>
