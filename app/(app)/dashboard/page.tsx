@@ -10,9 +10,8 @@ import { MiniLeaderboard } from '@/components/mini-leaderboard'
 import { buildMatchesForUser } from '@/app/api/matches/route'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Clock, Trophy } from 'lucide-react'
+import { Clock, Trophy, Loader2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry } from '@/lib/types'
 
 // ─── Async streaming sections ─────────────────────────────────────────────────
@@ -162,28 +161,12 @@ async function DashboardMatches({ userId }: { userId: string }) {
   )
 }
 
-// ─── Skeleton fallbacks ───────────────────────────────────────────────────────
+// ─── Loading fallbacks ────────────────────────────────────────────────────────
 
-function LeaderboardFallback() {
+function SpinnerFallback() {
   return (
-    <div className="space-y-1">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <Skeleton key={i} className="h-12 w-full rounded-lg" />
-      ))}
-    </div>
-  )
-}
-
-function PlayerCardFallback() {
-  return <Skeleton className="h-44 w-full rounded-xl" />
-}
-
-function MatchesFallback() {
-  return (
-    <div className="space-y-2">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <Skeleton key={i} className="h-16 w-full rounded-lg" />
-      ))}
+    <div className="flex items-center justify-center py-12">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   )
 }
@@ -220,7 +203,7 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex-1 p-4 pt-0">
-            <Suspense fallback={<LeaderboardFallback />}>
+            <Suspense fallback={<SpinnerFallback />}>
               <DashboardLeaderboard userId={user.id} />
             </Suspense>
           </CardContent>
@@ -228,11 +211,11 @@ export default async function DashboardPage() {
 
         {/* Right: Player card + matches — each streams independently */}
         <div className="space-y-6">
-          <Suspense fallback={<PlayerCardFallback />}>
+          <Suspense fallback={<SpinnerFallback />}>
             <DashboardPlayerCard userId={user.id} />
           </Suspense>
 
-          <Suspense fallback={<MatchesFallback />}>
+          <Suspense fallback={<SpinnerFallback />}>
             <DashboardMatches userId={user.id} />
           </Suspense>
         </div>

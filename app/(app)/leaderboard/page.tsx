@@ -4,7 +4,7 @@ import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
 import { eq, desc, gt, gte, and, count, inArray, sql } from 'drizzle-orm'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Loader2 } from 'lucide-react'
 import type { LeaderboardEntry, Season } from '@/lib/types'
 import LeaderboardClient from './leaderboard-client'
 
@@ -107,21 +107,8 @@ async function LeaderboardData({ userId }: { userId: string }) {
 
 function LeaderboardFallback() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Leaderboard</h1>
-          <p className="text-sm text-muted-foreground">Top ranked grass volleyball players</p>
-        </div>
-        <Skeleton className="h-9 w-44 rounded-md" />
-      </div>
-      <Skeleton className="h-20 w-full rounded-xl" />
-      <Skeleton className="h-10 w-full rounded-md" />
-      <div className="space-y-2">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-[72px] w-full rounded-lg" />
-        ))}
-      </div>
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
     </div>
   )
 }
