@@ -7,6 +7,7 @@ import { SeasonSelector } from '@/components/season-selector'
 import { Input } from '@/components/ui/input'
 import { Search, Trophy } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
+import { isUnranked } from '@/lib/mock-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, LeaderboardResponse, Season } from '@/lib/types'
@@ -14,7 +15,7 @@ import type { LeaderboardEntry, LeaderboardResponse, Season } from '@/lib/types'
 interface MeData {
   id: string
   name: string
-  stats: { rr: number } | null
+  stats: { rr: number; gamesPlayed: number } | null
   rank: number | null
 }
 
@@ -95,19 +96,30 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
                 <Skeleton className="h-8 w-12 mt-1" />
               ) : (
                 <p className="text-2xl font-bold">
-                  {me?.rank != null ? `#${me.rank}` : '—'}
+                  {me && !isUnranked(me.stats?.gamesPlayed ?? 0) && me.rank != null
+                    ? `#${me.rank}`
+                    : '—'}
                 </p>
               )}
             </div>
           </div>
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Current RR</p>
             {loading ? (
               <Skeleton className="h-8 w-16 mt-1 ml-auto" />
+            ) : me && isUnranked(me.stats?.gamesPlayed ?? 0) ? (
+              <>
+                <p className="text-sm text-muted-foreground">Placements</p>
+                <p className="text-2xl font-bold text-primary">
+                  {me.stats?.gamesPlayed ?? 0}/5
+                </p>
+              </>
             ) : (
-              <p className="text-2xl font-bold text-primary">
-                {me?.stats?.rr ?? '—'}
-              </p>
+              <>
+                <p className="text-sm text-muted-foreground">Current RR</p>
+                <p className="text-2xl font-bold text-primary">
+                  {me?.stats?.rr ?? '—'}
+                </p>
+              </>
             )}
           </div>
         </CardContent>

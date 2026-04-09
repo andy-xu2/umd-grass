@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
-import { eq, desc, gt, and, count, inArray, sql } from 'drizzle-orm'
+import { eq, desc, gt, gte, and, count, inArray, sql } from 'drizzle-orm'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, Season } from '@/lib/types'
 import LeaderboardClient from './leaderboard-client'
@@ -38,7 +38,7 @@ async function LeaderboardData({ userId }: { userId: string }) {
       })
         .from(seasonStats)
         .innerJoin(users, eq(seasonStats.userId, users.id))
-        .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
+        .where(and(eq(seasonStats.seasonId, seasonId), gte(seasonStats.gamesPlayed, 5)))
         .orderBy(desc(seasonStats.rr)),
       db.select().from(users).where(eq(users.id, userId)),
       db.select().from(seasonStats)
@@ -64,11 +64,12 @@ async function LeaderboardData({ userId }: { userId: string }) {
             .where(and(eq(rrChanges.seasonId, seasonId), inArray(rrChanges.userId, playerIds)))
             .orderBy(desc(rrChanges.createdAt))
         : Promise.resolve([]),
-      stat
+      stat && stat.gamesPlayed >= 5
         ? db.select({ value: count() })
             .from(seasonStats)
             .where(and(
               eq(seasonStats.seasonId, seasonId),
+              gte(seasonStats.gamesPlayed, 5),
               gt(seasonStats.rr, stat.rr),
             ))
         : Promise.resolve(null),
@@ -89,7 +90,7 @@ async function LeaderboardData({ userId }: { userId: string }) {
     me = {
       id: userId,
       name: profile?.name ?? '',
-      stats: stat ? { rr: stat.rr } : null,
+      stats: stat ? { rr: stat.rr, gamesPlayed: stat.gamesPlayed } : null,
       rank,
     }
   }

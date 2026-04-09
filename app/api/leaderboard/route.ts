@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
-import { eq, desc, gt, and, inArray } from 'drizzle-orm'
+import { eq, desc, gte, and, inArray } from 'drizzle-orm'
 import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
-    .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
+    .where(and(eq(seasonStats.seasonId, seasonId), gte(seasonStats.gamesPlayed, 5)))
     .orderBy(desc(seasonStats.rr))
 
   let rankCounter = 0
