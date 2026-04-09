@@ -88,19 +88,21 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     }
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
+    const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
 
     const res = await fetch('/api/users/me', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ avatarUrl: publicUrl }),
+      body: JSON.stringify({ avatarUrl: cacheBustedUrl }),
     })
 
     if (res.ok) {
-      setProfile(prev => ({ ...prev, avatarUrl: publicUrl }))
+      setProfile(prev => ({ ...prev, avatarUrl: cacheBustedUrl }))
       toast.success('Avatar updated')
     } else {
       toast.error('Failed to save avatar')
     }
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setIsUploadingAvatar(false)
   }
 
