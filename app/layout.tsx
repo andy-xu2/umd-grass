@@ -14,21 +14,8 @@ export const metadata: Metadata = {
   description: 'Competitive ranking system for doubles grass volleyball players at UMD',
   manifest: '/manifest.json',
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
+    icon: '/testudo-image.png',
+    apple: '/testudo-image.png',
   },
 }
 
