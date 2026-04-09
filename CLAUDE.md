@@ -174,7 +174,10 @@ NEXT_PUBLIC_APP_URL=
 - Navbar badge for pending verifications
 - Supabase pg_cron job to expire matches after 7 days
 
-### Part 10 — PWA & Deployment Polish
-- Configure `@ducanh2912/next-pwa` offline caching
-- Fix TypeScript strict mode (remove `ignoreBuildErrors`)
-- Deploy to Vercel with all env vars set
+### Part 10 — PWA & Deployment Polish ✅
+- Configured `@ducanh2912/next-pwa` with full runtime caching (NetworkFirst for API/pages, CacheFirst for static assets/images, StaleWhileRevalidate for `_next/image`)
+- `app/~offline/page.tsx` — offline fallback page served by the service worker
+- `public/manifest.json` — updated icons to reference files that exist
+- Removed `typescript.ignoreBuildErrors` — build passes clean with zero TS errors
+- `vercel.json` — correct `Cache-Control` + `Service-Worker-Allowed` headers for `sw.js`
+- `.env.example` — documents all required environment variables for deployment
