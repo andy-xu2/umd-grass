@@ -48,7 +48,9 @@ export async function DELETE(
       .from(rrChanges)
       .where(and(eq(rrChanges.matchId, id), inArray(rrChanges.userId, playerIds)))
 
-    const deltaMap = new Map(changes.map(c => [c.userId, c.delta]))
+    // Use rrBefore (exact pre-match value) rather than stat.rr - delta.
+    // stat.rr - delta is wrong when the player's RR was floored at 0 on confirmation.
+    const preRrMap = new Map(changes.map(c => [c.userId, c.rrBefore]))
 
     const stats = await tx
       .select()
@@ -61,14 +63,14 @@ export async function DELETE(
       )
 
     for (const stat of stats) {
-      const delta = deltaMap.get(stat.userId) ?? 0
       const onTeam1 = stat.userId === match.team1Player1Id || stat.userId === match.team1Player2Id
       const won = onTeam1 ? team1Won : !team1Won
+      const restoredRr = preRrMap.get(stat.userId) ?? stat.rr
 
       await tx
         .update(seasonStats)
         .set({
-          rr: Math.max(0, stat.rr - delta),
+          rr: restoredRr,
           gamesPlayed: Math.max(0, stat.gamesPlayed - 1),
           wins: won ? Math.max(0, stat.wins - 1) : stat.wins,
           losses: won ? stat.losses : Math.max(0, stat.losses - 1),

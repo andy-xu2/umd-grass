@@ -74,7 +74,14 @@ function ScoreDisplay({ match }: { match: MatchResponse }) {
 export default function AdminClient({ initialSeasons, initialSeasonId, initialUsers }: Props) {
   const [seasons, setSeasons] = useState<Season[]>(initialSeasons)
   const [newSeasonName, setNewSeasonName] = useState('')
+  const [newSeasonStartDate, setNewSeasonStartDate] = useState('')
+  const [newSeasonEndDate, setNewSeasonEndDate] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+
+  const [editSeasonDates, setEditSeasonDates] = useState<Season | null>(null)
+  const [editStartDate, setEditStartDate] = useState('')
+  const [editEndDate, setEditEndDate] = useState('')
+  const [isSavingDates, setIsSavingDates] = useState(false)
 
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(initialSeasonId)
   const [usersForSeason, setUsersForSeason] = useState<UserWithStats[]>(initialUsers)
@@ -126,11 +133,17 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     const res = await fetch('/api/seasons', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newSeasonName.trim() }),
+      body: JSON.stringify({
+        name: newSeasonName.trim(),
+        ...(newSeasonStartDate ? { startDate: newSeasonStartDate } : {}),
+        ...(newSeasonEndDate ? { endDate: newSeasonEndDate } : {}),
+      }),
     })
     if (res.ok) {
       toast.success('Season created')
       setNewSeasonName('')
+      setNewSeasonStartDate('')
+      setNewSeasonEndDate('')
       const seasonsRes = await fetch('/api/seasons')
       if (seasonsRes.ok) {
         const data: Season[] = await seasonsRes.json()
@@ -204,6 +217,29 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     setEditScoreSets(prev => prev.filter((_, i) => i !== idx))
   }
 
+  async function handleSaveDates() {
+    if (!editSeasonDates) return
+    setIsSavingDates(true)
+    const res = await fetch(`/api/seasons/${editSeasonDates.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startDate: editStartDate || null,
+        endDate: editEndDate || null,
+      }),
+    })
+    if (res.ok) {
+      toast.success('Season dates updated')
+      setEditSeasonDates(null)
+      const seasonsRes = await fetch('/api/seasons')
+      if (seasonsRes.ok) setSeasons(await seasonsRes.json())
+    } else {
+      const data = await res.json()
+      toast.error(data.error ?? 'Failed to update dates')
+    }
+    setIsSavingDates(false)
+  }
+
   async function handleSaveScore() {
     if (!editScoreMatch) return
     setIsSavingScore(true)
@@ -250,8 +286,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-3">
-            <div className="flex-1 space-y-1.5">
+          <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="space-y-1.5">
               <Label htmlFor="season-name">Season Name</Label>
               <Input
                 id="season-name"
@@ -259,6 +295,24 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                 value={newSeasonName}
                 onChange={e => setNewSeasonName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreateSeason()}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="season-start">Start Date</Label>
+              <Input
+                id="season-start"
+                type="date"
+                value={newSeasonStartDate}
+                onChange={e => setNewSeasonStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="season-end">End Date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Input
+                id="season-end"
+                type="date"
+                value={newSeasonEndDate}
+                onChange={e => setNewSeasonEndDate(e.target.value)}
               />
             </div>
             <div className="flex items-end">
@@ -279,31 +333,56 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Started</TableHead>
-                    <TableHead>Ended</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>End Date</TableHead>
+                    <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {seasons.map(season => (
-                    <TableRow key={season.id}>
-                      <TableCell className="font-medium">{season.name}</TableCell>
-                      <TableCell>
-                        {season.isActive ? (
-                          <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0">
-                            Active
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">Ended</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {formatDate(season.startedAt)}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {season.endedAt ? formatDate(season.endedAt) : '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {seasons.map(season => {
+                    const now = new Date()
+                    const started = new Date(season.startedAt) <= now
+                    const ended = season.endedAt ? new Date(season.endedAt) < now : false
+                    return (
+                      <TableRow key={season.id}>
+                        <TableCell className="font-medium">{season.name}</TableCell>
+                        <TableCell>
+                          {season.isActive && !started ? (
+                            <Badge className="bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-0">
+                              Upcoming
+                            </Badge>
+                          ) : season.isActive && !ended ? (
+                            <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-0">
+                              Active
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary">Ended</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {formatDate(season.startedAt)}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm">
+                          {season.endedAt ? formatDate(season.endedAt) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Edit dates"
+                            onClick={() => {
+                              setEditSeasonDates(season)
+                              setEditStartDate(season.startedAt.split('T')[0])
+                              setEditEndDate(season.endedAt ? season.endedAt.split('T')[0] : '')
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -557,6 +636,49 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Season Dates Dialog */}
+      <Dialog open={!!editSeasonDates} onOpenChange={open => !open && setEditSeasonDates(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Season Dates</DialogTitle>
+            <DialogDescription>
+              {editSeasonDates?.name} — update the start and/or end date.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-start-date">Start Date</Label>
+              <Input
+                id="edit-start-date"
+                type="date"
+                value={editStartDate}
+                onChange={e => setEditStartDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-end-date">
+                End Date <span className="text-muted-foreground font-normal">(leave blank for open-ended)</span>
+              </Label>
+              <Input
+                id="edit-end-date"
+                type="date"
+                value={editEndDate}
+                onChange={e => setEditEndDate(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSaveDates} disabled={isSavingDates}>
+                {isSavingDates && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save
+              </Button>
+              <Button variant="outline" onClick={() => setEditSeasonDates(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Score Dialog */}
       <Dialog open={!!editScoreMatch} onOpenChange={open => !open && setEditScoreMatch(null)}>

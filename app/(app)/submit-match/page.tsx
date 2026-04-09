@@ -11,9 +11,9 @@ import { Badge } from '@/components/ui/badge'
 import { VerificationCard } from '@/components/verification-card'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
-import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy } from 'lucide-react'
+import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { UserWithStats, MatchResponse, SetScore } from '@/lib/types'
+import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
 
 const emptySet = (): SetScore => ({ team1: 0, team2: 0 })
 
@@ -21,6 +21,7 @@ export default function SubmitMatchPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [allUsers, setAllUsers] = useState<UserWithStats[]>([])
   const [myMatches, setMyMatches] = useState<MatchResponse[]>([])
+  const [activeSeason, setActiveSeason] = useState<Season | null | undefined>(undefined)
   const [loadingData, setLoadingData] = useState(true)
 
   const [teammate, setTeammate] = useState('')
@@ -32,12 +33,17 @@ export default function SubmitMatchPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
-    const [usersRes, matchesRes] = await Promise.all([
+    const [usersRes, matchesRes, seasonsRes] = await Promise.all([
       fetch('/api/users'),
       fetch('/api/matches'),
+      fetch('/api/seasons'),
     ])
     if (usersRes.ok) setAllUsers(await usersRes.json())
     if (matchesRes.ok) setMyMatches(await matchesRes.json())
+    if (seasonsRes.ok) {
+      const allSeasons: Season[] = await seasonsRes.json()
+      setActiveSeason(allSeasons.find(s => s.isActive) ?? null)
+    }
   }, [])
 
   useEffect(() => {
@@ -130,7 +136,24 @@ export default function SubmitMatchPage() {
     return `${u.stats.rr} RR`
   }
 
+  // Season state
+  const now = new Date()
+  const seasonStart = activeSeason ? new Date(activeSeason.startedAt) : null
+  const seasonEnd = activeSeason?.endedAt ? new Date(activeSeason.endedAt) : null
+  const seasonNotStarted = seasonStart ? seasonStart > now : false
+  const seasonHasEnded = seasonEnd ? seasonEnd < now : false
+  const inSession = !!activeSeason && !seasonNotStarted && !seasonHasEnded
+  const daysUntilEnd = seasonEnd && !seasonHasEnded
+    ? Math.ceil((seasonEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null
+  const isEndingSoon = daysUntilEnd !== null && daysUntilEnd <= 7
+
+  function formatDisplayDate(iso: string) {
+    return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
   const canSubmit =
+    inSession &&
     !!teammate &&
     !!opponent1 &&
     !!opponent2 &&
@@ -176,7 +199,11 @@ export default function SubmitMatchPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {submitted ? (
+              {loadingData ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : inSession ? (submitted ? (
                 <div className="flex flex-col items-center py-8">
                   <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
                     <CheckCircle className="h-8 w-8 text-primary" />
@@ -191,6 +218,16 @@ export default function SubmitMatchPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Ending soon banner */}
+                  {isEndingSoon && activeSeason && (
+                    <div className="flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        <span className="font-medium">{activeSeason.name} ends on {formatDisplayDate(activeSeason.endedAt!)}.</span>
+                        {daysUntilEnd === 1 ? ' Last day to submit!' : ` ${daysUntilEnd} days left.`}
+                      </p>
+                    </div>
+                  )}
                   {submitError && (
                     <p className="rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
                       {submitError}
@@ -413,6 +450,34 @@ export default function SubmitMatchPage() {
                     )}
                   </Button>
                 </form>
+              )) : seasonNotStarted && activeSeason ? (
+                <div className="flex flex-col items-center py-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                    <CalendarClock className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">{activeSeason.name} hasn&apos;t started yet</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Season opens on <span className="font-medium text-foreground">{formatDisplayDate(activeSeason.startedAt)}</span>
+                  </p>
+                </div>
+              ) : seasonHasEnded && activeSeason ? (
+                <div className="flex flex-col items-center py-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+                    <CalendarClock className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">Season has ended</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {activeSeason.name} ended on <span className="font-medium text-foreground">{formatDisplayDate(activeSeason.endedAt!)}</span>
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+                    <CalendarClock className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">No active season</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">Check back when a new season is announced.</p>
+                </div>
               )}
             </CardContent>
           </Card>

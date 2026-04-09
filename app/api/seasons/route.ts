@@ -46,12 +46,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const body = await request.json() as { name?: string }
+  const body = await request.json() as { name?: string; startDate?: string; endDate?: string }
   if (!body.name?.trim()) {
     return NextResponse.json({ error: 'Season name is required' }, { status: 400 })
   }
 
   const now = new Date()
+  // Append noon UTC so date-only strings (YYYY-MM-DD from <input type="date">)
+  // don't roll back a day for Western-hemisphere timezones.
+  const startedAt = body.startDate ? new Date(body.startDate + 'T12:00:00Z') : now
+  const endedAt = body.endDate ? new Date(body.endDate + 'T12:00:00Z') : undefined
   let newSeasonId: string | null = null
 
   await db.transaction(async tx => {
@@ -78,7 +82,7 @@ export async function POST(request: Request) {
     // Create the new active season
     const [newSeason] = await tx
       .insert(seasons)
-      .values({ name: body.name!.trim(), isActive: true, startedAt: now })
+      .values({ name: body.name!.trim(), isActive: true, startedAt, ...(endedAt ? { endedAt } : {}) })
       .returning()
 
     newSeasonId = newSeason.id

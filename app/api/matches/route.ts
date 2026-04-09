@@ -168,6 +168,13 @@ export async function POST(request: Request) {
   }
 
   const now = new Date()
+
+  if (activeSeason.startedAt > now) {
+    return NextResponse.json({ error: 'Season has not started yet' }, { status: 400 })
+  }
+  if (activeSeason.endedAt && activeSeason.endedAt < now) {
+    return NextResponse.json({ error: 'Season has ended' }, { status: 400 })
+  }
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
   const [match] = await db
