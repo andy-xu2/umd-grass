@@ -25,3 +25,15 @@ export async function createClient() {
     }
   )
 }
+
+/**
+ * Reads the current user from the session cookie — no network call.
+ * Safe to use in page Server Components because the middleware already
+ * called getUser() (which does the network verification) on every request.
+ * API routes should still call supabase.auth.getUser() for full verification.
+ */
+export async function getSessionUser() {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.user ?? null
+}

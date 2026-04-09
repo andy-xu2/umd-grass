@@ -1,17 +1,15 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase-server'
+import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
 import { eq, desc, gt, and, count, inArray } from 'drizzle-orm'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, Season } from '@/lib/types'
 import LeaderboardClient from './leaderboard-client'
 
-export default async function LeaderboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  // Batch 1: all seasons (need seasonId before anything else)
+async function LeaderboardData({ userId }: { userId: string }) {
+  // Batch 1: all seasons (need seasonId)
   const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
   const seasonList: Season[] = allSeasons.map(s => ({
     id: s.id,
@@ -21,8 +19,7 @@ export default async function LeaderboardPage() {
     endedAt: s.endedAt?.toISOString() ?? null,
   }))
 
-  const activeSeason = allSeasons.find(s => s.isActive) ?? null
-  const seasonId = activeSeason?.id ?? null
+  const seasonId = allSeasons.find(s => s.isActive)?.id ?? null
 
   let entries: LeaderboardEntry[] = []
   let me = null
@@ -44,9 +41,9 @@ export default async function LeaderboardPage() {
         .innerJoin(users, eq(seasonStats.userId, users.id))
         .where(and(eq(seasonStats.seasonId, seasonId), gt(seasonStats.gamesPlayed, 0)))
         .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr)),
-      db.select().from(users).where(eq(users.id, user.id)),
+      db.select().from(users).where(eq(users.id, userId)),
       db.select().from(seasonStats)
-        .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, seasonId))),
+        .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, seasonId))),
     ])
 
     const stat = myStatsRows[0] ?? null
@@ -81,7 +78,6 @@ export default async function LeaderboardPage() {
         : Promise.resolve(null),
     ])
 
-    // Apply rank trends
     const latestRrBefore = new Map<string, number>()
     for (const change of recentChanges) {
       if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
@@ -95,10 +91,9 @@ export default async function LeaderboardPage() {
       entry.rankTrend = prevRank - entry.rank
     }
 
-    // Build "me" object
     const rank = rankCountResult ? Number(rankCountResult[0].value) + 1 : null
     me = {
-      id: user.id,
+      id: userId,
       name: profile?.name ?? '',
       stats: stat ? { rr: stat.rr, isRevealed: stat.isRevealed } : null,
       rank,
@@ -112,5 +107,37 @@ export default async function LeaderboardPage() {
       initialSeasonId={seasonId}
       initialSeasons={seasonList}
     />
+  )
+}
+
+function LeaderboardFallback() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold">Leaderboard</h1>
+          <p className="text-sm text-muted-foreground">Top ranked grass volleyball players</p>
+        </div>
+        <Skeleton className="h-9 w-44 rounded-md" />
+      </div>
+      <Skeleton className="h-20 w-full rounded-xl" />
+      <Skeleton className="h-10 w-full rounded-md" />
+      <div className="space-y-2">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-[72px] w-full rounded-lg" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default async function LeaderboardPage() {
+  const user = await getSessionUser()
+  if (!user) redirect('/login')
+
+  return (
+    <Suspense fallback={<LeaderboardFallback />}>
+      <LeaderboardData userId={user.id} />
+    </Suspense>
   )
 }

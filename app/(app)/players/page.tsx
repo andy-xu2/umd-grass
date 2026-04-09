@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase-server'
+import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -7,8 +7,7 @@ import type { UserWithStats, Season } from '@/lib/types'
 import PlayersClient from './players-client'
 
 export default async function PlayersPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
   // Batch 1: all seasons + all users — parallel

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase-server'
+import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq, desc } from 'drizzle-orm'
@@ -8,9 +8,7 @@ import AdminClient from './admin-client'
 import { isAdmin } from '@/lib/utils'
 
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
+  const user = await getSessionUser()
   if (!user || !isAdmin(user.id)) redirect('/dashboard')
 
   const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
@@ -27,8 +25,10 @@ export default async function AdminPage() {
 
   let initialUsers: UserWithStats[] = []
   if (seasonId) {
-    const allUsers = await db.select().from(users)
-    const allStats = await db.select().from(seasonStats).where(eq(seasonStats.seasonId, seasonId))
+    const [allUsers, allStats] = await Promise.all([
+      db.select().from(users),
+      db.select().from(seasonStats).where(eq(seasonStats.seasonId, seasonId)),
+    ])
     const statsMap = new Map(allStats.map(s => [s.userId, s]))
 
     initialUsers = allUsers.map(u => {

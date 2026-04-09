@@ -50,15 +50,15 @@ export default function PlayerProfilePage() {
   const [seasonId, setSeasonId] = useState<string | null>(null)
   const [notFound, setNotFound] = useState(false)
 
-  // Get current user so we can redirect if viewing own profile
+  // Get current user so we can redirect if viewing own profile.
+  // getSession() reads from cookie/localStorage — no network call.
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setCurrentUserId(user.id)
-        if (user.id === playerId) {
-          router.replace('/profile')
-        }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id
+      if (uid) {
+        setCurrentUserId(uid)
+        if (uid === playerId) router.replace('/profile')
       }
     })
   }, [playerId, router])

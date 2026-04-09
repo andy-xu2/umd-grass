@@ -1,5 +1,6 @@
+import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase-server'
+import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
 import { eq, and, desc, gt, inArray } from 'drizzle-orm'
@@ -11,127 +12,207 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Clock, Trophy } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry } from '@/lib/types'
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+// ─── Async streaming sections ─────────────────────────────────────────────────
 
-  // Batch 1: all queries that don't depend on each other
-  const [[profile], [activeSeason], allMatches] = await Promise.all([
-    db.select().from(users).where(eq(users.id, user.id)),
+async function DashboardLeaderboard({ userId }: { userId: string }) {
+  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+  if (!activeSeason) {
+    return (
+      <p className="py-8 text-center text-sm text-muted-foreground">
+        No active season yet.
+      </p>
+    )
+  }
+
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      avatarUrl: users.avatarUrl,
+      rr: seasonStats.rr,
+      gamesPlayed: seasonStats.gamesPlayed,
+      wins: seasonStats.wins,
+      losses: seasonStats.losses,
+      isRevealed: seasonStats.isRevealed,
+    })
+    .from(seasonStats)
+    .innerJoin(users, eq(seasonStats.userId, users.id))
+    .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
+    .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
+
+  let rankCounter = 0
+  const entries: LeaderboardEntry[] = rows.map(row => {
+    if (row.isRevealed) {
+      rankCounter++
+      return { ...row, rank: rankCounter, rankTrend: null }
+    }
+    return { ...row, rank: null, rankTrend: null }
+  })
+
+  const playerIds = entries.map(e => e.userId)
+  if (playerIds.length > 0) {
+    const recentChanges = await db
+      .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
+      .from(rrChanges)
+      .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
+      .orderBy(desc(rrChanges.createdAt))
+
+    const latestRrBefore = new Map<string, number>()
+    for (const change of recentChanges) {
+      if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
+    }
+    const revealedEntries = entries.filter(e => e.rank != null)
+    for (const entry of entries) {
+      if (entry.rank == null) continue
+      const rrBefore = latestRrBefore.get(entry.userId)
+      if (rrBefore == null) { entry.rankTrend = 0; continue }
+      const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+      entry.rankTrend = prevRank - entry.rank
+    }
+  }
+
+  return <MiniLeaderboard entries={entries} currentUserId={userId} />
+}
+
+async function DashboardPlayerCard({ userId }: { userId: string }) {
+  const [[profile], [activeSeason]] = await Promise.all([
+    db.select().from(users).where(eq(users.id, userId)),
     db.select().from(seasons).where(eq(seasons.isActive, true)),
-    buildMatchesForUser(user.id),
   ])
 
+  let stats = null
+  if (activeSeason) {
+    const [s] = await db
+      .select()
+      .from(seasonStats)
+      .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, activeSeason.id)))
+    stats = s ?? null
+  }
+
+  const playerCardUser = {
+    id: userId,
+    name: profile?.name ?? 'Player',
+    avatarUrl: profile?.avatarUrl ?? null,
+    rr: stats?.rr ?? 800,
+    gamesPlayed: stats?.gamesPlayed ?? 0,
+    wins: stats?.wins ?? 0,
+    losses: stats?.losses ?? 0,
+    isRevealed: stats?.isRevealed ?? false,
+  }
+
+  return <PlayerCard user={playerCardUser} />
+}
+
+async function DashboardMatches({ userId }: { userId: string }) {
+  const allMatches = await buildMatchesForUser(userId)
   const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
   const pendingToVerify = allMatches.filter(
     m =>
       m.status === 'PENDING' &&
-      (m.team2Player1.id === user.id || m.team2Player2.id === user.id),
+      (m.team2Player1.id === userId || m.team2Player2.id === userId),
   )
 
-  // Batch 2: queries that depend on activeSeason.id, run in parallel
-  let stats = null
-  let leaderboardEntries: LeaderboardEntry[] = []
+  return (
+    <>
+      {pendingToVerify.length > 0 && (
+        <Link href="/submit-match">
+          <Button variant="outline" className="w-full gap-2">
+            <Clock className="h-4 w-4" />
+            {pendingToVerify.length} Pending Verification{pendingToVerify.length !== 1 ? 's' : ''}
+          </Button>
+        </Link>
+      )}
 
-  if (activeSeason) {
-    const [statsRows, leaderboardRows] = await Promise.all([
-      db.select().from(seasonStats)
-        .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, activeSeason.id))),
-      db.select({
-        userId: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-        rr: seasonStats.rr,
-        gamesPlayed: seasonStats.gamesPlayed,
-        wins: seasonStats.wins,
-        losses: seasonStats.losses,
-        isRevealed: seasonStats.isRevealed,
-      })
-        .from(seasonStats)
-        .innerJoin(users, eq(seasonStats.userId, users.id))
-        .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
-        .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr)),
-    ])
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold">Recent Matches</h2>
+          <Link href="/profile" className="text-xs text-primary hover:underline">
+            View all
+          </Link>
+        </div>
+        <div className="space-y-2">
+          {confirmedMatches.length > 0 ? (
+            confirmedMatches.map(match => (
+              <MatchCard key={match.id} match={match} currentUserId={userId} compact />
+            ))
+          ) : (
+            <div className="rounded-lg bg-secondary/30 p-6 text-center">
+              <p className="text-sm text-muted-foreground">No matches yet</p>
+              <Link href="/submit-match">
+                <Button className="mt-3" size="sm">Submit your first match</Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
 
-    stats = statsRows[0] ?? null
+      {pendingToVerify.length > 0 && (
+        <div>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Pending Verifications</h2>
+            <Link href="/submit-match" className="text-xs text-primary hover:underline">
+              View all
+            </Link>
+          </div>
+          <div className="space-y-2">
+            {pendingToVerify.slice(0, 2).map(match => (
+              <MatchCard key={match.id} match={match} currentUserId={userId} />
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
 
-    let rankCounter = 0
-    leaderboardEntries = leaderboardRows.map(row => {
-      if (row.isRevealed) {
-        rankCounter++
-        return { ...row, rank: rankCounter, rankTrend: null }
-      }
-      return { ...row, rank: null, rankTrend: null }
-    })
+// ─── Skeleton fallbacks ───────────────────────────────────────────────────────
 
-    // Batch 3: rank trends (depends on leaderboard player IDs)
-    const playerIds = leaderboardEntries.map(e => e.userId)
-    if (playerIds.length > 0) {
-      const recentChanges = await db
-        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
-        .from(rrChanges)
-        .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
-        .orderBy(desc(rrChanges.createdAt))
+function LeaderboardFallback() {
+  return (
+    <div className="space-y-1">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full rounded-lg" />
+      ))}
+    </div>
+  )
+}
 
-      const latestRrBefore = new Map<string, number>()
-      for (const change of recentChanges) {
-        if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
-      }
+function PlayerCardFallback() {
+  return <Skeleton className="h-44 w-full rounded-xl" />
+}
 
-      const revealedEntries = leaderboardEntries.filter(e => e.rank != null)
-      for (const entry of leaderboardEntries) {
-        if (entry.rank == null) continue
-        const rrBefore = latestRrBefore.get(entry.userId)
-        if (rrBefore == null) { entry.rankTrend = 0; continue }
-        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
-        entry.rankTrend = prevRank - entry.rank
-      }
-    }
-  }
+function MatchesFallback() {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <Skeleton key={i} className="h-16 w-full rounded-lg" />
+      ))}
+    </div>
+  )
+}
 
-  const rr = stats?.rr ?? 800
-  const gamesPlayed = stats?.gamesPlayed ?? 0
-  const wins = stats?.wins ?? 0
-  const losses = stats?.losses ?? 0
-  const isRevealed = stats?.isRevealed ?? false
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
-  const playerCardUser = {
-    id: user.id,
-    name: profile?.name ?? user.email ?? 'Unknown',
-    avatarUrl: profile?.avatarUrl ?? null,
-    rr,
-    gamesPlayed,
-    wins,
-    losses,
-    isRevealed,
-  }
+export default async function DashboardPage() {
+  // getSession() reads the cookie — no network call to Supabase Auth.
+  // Middleware already verified the token, so this is safe and fast.
+  const user = await getSessionUser()
+  if (!user) redirect('/login')
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Welcome back, {profile?.name ?? 'Player'}
-          </p>
-        </div>
-        {pendingToVerify.length > 0 && (
-          <Link href="/submit-match">
-            <Button variant="outline" className="gap-2">
-              <Clock className="h-4 w-4" />
-              {pendingToVerify.length} Pending Verification
-            </Button>
-          </Link>
-        )}
+      {/* Header renders instantly */}
+      <div>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-sm text-muted-foreground">Welcome back</p>
       </div>
 
-      {/* Two-column layout on desktop */}
+      {/* Two-column layout — each section streams in independently */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        {/* Left: Mini-Leaderboard */}
+        {/* Left: Rankings */}
         <Card className="flex flex-col">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -145,54 +226,21 @@ export default async function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex-1 p-4 pt-0">
-            <MiniLeaderboard entries={leaderboardEntries} currentUserId={user.id} />
+            <Suspense fallback={<LeaderboardFallback />}>
+              <DashboardLeaderboard userId={user.id} />
+            </Suspense>
           </CardContent>
         </Card>
 
-        {/* Right: Player Card + Recent Matches + Pending */}
+        {/* Right: Player card + matches — each streams independently */}
         <div className="space-y-6">
-          <PlayerCard user={playerCardUser} />
+          <Suspense fallback={<PlayerCardFallback />}>
+            <DashboardPlayerCard userId={user.id} />
+          </Suspense>
 
-          {/* Recent Matches */}
-          <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold">Recent Matches</h2>
-              <Link href="/profile" className="text-xs text-primary hover:underline">
-                View all
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {confirmedMatches.length > 0 ? (
-                confirmedMatches.map(match => (
-                  <MatchCard key={match.id} match={match} currentUserId={user.id} compact />
-                ))
-              ) : (
-                <div className="rounded-lg bg-secondary/30 p-6 text-center">
-                  <p className="text-sm text-muted-foreground">No matches yet</p>
-                  <Link href="/submit-match">
-                    <Button className="mt-3" size="sm">Submit your first match</Button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Pending Verifications */}
-          {pendingToVerify.length > 0 && (
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Pending Verifications</h2>
-                <Link href="/submit-match" className="text-xs text-primary hover:underline">
-                  View all
-                </Link>
-              </div>
-              <div className="space-y-2">
-                {pendingToVerify.slice(0, 2).map(match => (
-                  <MatchCard key={match.id} match={match} currentUserId={user.id} />
-                ))}
-              </div>
-            </div>
-          )}
+          <Suspense fallback={<MatchesFallback />}>
+            <DashboardMatches userId={user.id} />
+          </Suspense>
         </div>
       </div>
     </div>
