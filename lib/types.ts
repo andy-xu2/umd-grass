@@ -60,6 +60,8 @@ export interface UserWithStats {
 
 export interface LeaderboardEntry {
   rank: number | null   // null when isRevealed = false (< 5 games)
+  /** Positive = moved up N spots since last match, negative = moved down, 0 = unchanged, null = no previous match */
+  rankTrend: number | null
   userId: string
   name: string
   avatarUrl: string | null

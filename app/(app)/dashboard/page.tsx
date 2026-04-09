@@ -1,17 +1,17 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, and } from 'drizzle-orm'
+import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
+import { eq, and, desc, gt, inArray } from 'drizzle-orm'
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
-import { StatCard } from '@/components/stat-card'
+import { MiniLeaderboard } from '@/components/mini-leaderboard'
 import { buildMatchesForUser } from '@/app/api/matches/route'
-import { getWinRate } from '@/lib/mock-data'
-import { Gamepad2, Target, TrendingUp, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Clock } from 'lucide-react'
+import { Clock, Trophy } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { LeaderboardEntry } from '@/lib/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -36,10 +36,7 @@ export default async function DashboardPage() {
 
   // All matches involving this user
   const allMatches = await buildMatchesForUser(user.id)
-
   const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
-
-  // Matches the user needs to verify (they're on team2, status PENDING)
   const pendingToVerify = allMatches.filter(
     m =>
       m.status === 'PENDING' &&
@@ -51,7 +48,6 @@ export default async function DashboardPage() {
   const wins = stats?.wins ?? 0
   const losses = stats?.losses ?? 0
   const isRevealed = stats?.isRevealed ?? false
-  const winRate = getWinRate(wins, gamesPlayed)
 
   const playerCardUser = {
     id: user.id,
@@ -62,6 +58,61 @@ export default async function DashboardPage() {
     wins,
     losses,
     isRevealed,
+  }
+
+  // Leaderboard data for mini-leaderboard
+  let leaderboardEntries: LeaderboardEntry[] = []
+  if (activeSeason) {
+    const rows = await db
+      .select({
+        userId: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+        rr: seasonStats.rr,
+        gamesPlayed: seasonStats.gamesPlayed,
+        wins: seasonStats.wins,
+        losses: seasonStats.losses,
+        isRevealed: seasonStats.isRevealed,
+      })
+      .from(seasonStats)
+      .innerJoin(users, eq(seasonStats.userId, users.id))
+      .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
+      .orderBy(desc(seasonStats.isRevealed), desc(seasonStats.rr))
+
+    let rankCounter = 0
+    leaderboardEntries = rows.map(row => {
+      if (row.isRevealed) {
+        rankCounter++
+        return { ...row, rank: rankCounter, rankTrend: null }
+      }
+      return { ...row, rank: null, rankTrend: null }
+    })
+
+    // Compute rank trends
+    const playerIds = leaderboardEntries.map(e => e.userId)
+    if (playerIds.length > 0) {
+      const recentChanges = await db
+        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
+        .from(rrChanges)
+        .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
+        .orderBy(desc(rrChanges.createdAt))
+
+      const latestRrBefore = new Map<string, number>()
+      for (const change of recentChanges) {
+        if (!latestRrBefore.has(change.userId)) {
+          latestRrBefore.set(change.userId, change.rrBefore)
+        }
+      }
+
+      const revealedEntries = leaderboardEntries.filter(e => e.rank != null)
+      for (const entry of leaderboardEntries) {
+        if (entry.rank == null) continue
+        const rrBefore = latestRrBefore.get(entry.userId)
+        if (rrBefore == null) { entry.rankTrend = 0; continue }
+        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+        entry.rankTrend = prevRank - entry.rank
+      }
+    }
   }
 
   return (
@@ -84,61 +135,72 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Player Card */}
-      <PlayerCard user={playerCardUser} />
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Games Played" value={gamesPlayed} icon={Gamepad2} />
-        <StatCard label="Win Rate" value={`${winRate}%`} icon={Target} />
-        <StatCard
-          label="Current RR"
-          value={isRevealed ? rr : '—'}
-          icon={TrendingUp}
-        />
-        <StatCard label="Total Wins" value={wins} icon={Trophy} />
-      </div>
-
-      {/* Recent Matches */}
-      <div>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Recent Matches</h2>
-          <Link href="/profile" className="text-sm text-primary hover:underline">
-            View all
-          </Link>
-        </div>
-        <div className="space-y-3">
-          {confirmedMatches.length > 0 ? (
-            confirmedMatches.map(match => (
-              <MatchCard key={match.id} match={match} currentUserId={user.id} compact />
-            ))
-          ) : (
-            <div className="rounded-lg bg-secondary/30 p-8 text-center">
-              <p className="text-muted-foreground">No matches played yet</p>
-              <Link href="/submit-match">
-                <Button className="mt-4">Submit your first match</Button>
+      {/* Two-column layout on desktop */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+        {/* Left: Mini-Leaderboard */}
+        <Card className="flex flex-col">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Trophy className="h-4 w-4 text-primary" />
+                Rankings
+              </CardTitle>
+              <Link href="/leaderboard" className="text-xs text-primary hover:underline">
+                Full leaderboard
               </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 p-4 pt-0">
+            <MiniLeaderboard entries={leaderboardEntries} currentUserId={user.id} />
+          </CardContent>
+        </Card>
+
+        {/* Right: Player Card + Recent Matches + Pending */}
+        <div className="space-y-6">
+          <PlayerCard user={playerCardUser} />
+
+          {/* Recent Matches */}
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold">Recent Matches</h2>
+              <Link href="/profile" className="text-xs text-primary hover:underline">
+                View all
+              </Link>
+            </div>
+            <div className="space-y-2">
+              {confirmedMatches.length > 0 ? (
+                confirmedMatches.map(match => (
+                  <MatchCard key={match.id} match={match} currentUserId={user.id} compact />
+                ))
+              ) : (
+                <div className="rounded-lg bg-secondary/30 p-6 text-center">
+                  <p className="text-sm text-muted-foreground">No matches yet</p>
+                  <Link href="/submit-match">
+                    <Button className="mt-3" size="sm">Submit your first match</Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Pending Verifications */}
+          {pendingToVerify.length > 0 && (
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Pending Verifications</h2>
+                <Link href="/submit-match" className="text-xs text-primary hover:underline">
+                  View all
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {pendingToVerify.slice(0, 2).map(match => (
+                  <MatchCard key={match.id} match={match} currentUserId={user.id} />
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
-
-      {/* Pending Verifications Preview */}
-      {pendingToVerify.length > 0 && (
-        <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Pending Verifications</h2>
-            <Link href="/submit-match" className="text-sm text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {pendingToVerify.slice(0, 2).map(match => (
-              <MatchCard key={match.id} match={match} currentUserId={user.id} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

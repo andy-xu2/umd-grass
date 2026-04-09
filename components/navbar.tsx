@@ -8,7 +8,10 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
 
-const ADMIN_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID
+const ADMIN_IDS = [
+  process.env.NEXT_PUBLIC_ADMIN_USER_ID,
+  process.env.NEXT_PUBLIC_ADMIN_USER_ID_2,
+].filter(Boolean) as string[]
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,10 +29,10 @@ export function Navbar() {
   const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
-    if (!ADMIN_ID) return
+    if (ADMIN_IDS.length === 0) return
     const supabase = createClient()
     supabase.auth.getUser().then(({ data: { user } }) => {
-      setIsAdmin(!!user && user.id === ADMIN_ID)
+      setIsAdmin(!!user && ADMIN_IDS.includes(user.id))
     })
   }, [])
 

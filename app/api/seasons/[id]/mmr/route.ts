@@ -7,11 +7,7 @@ import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { seasonStats } from '@/drizzle/schema'
 import { eq, and } from 'drizzle-orm'
-
-function isAdmin(userId: string): boolean {
-  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
-  return !!adminId && userId === adminId
-}
+import { isAdmin } from '@/lib/utils'
 
 export async function PATCH(
   request: Request,

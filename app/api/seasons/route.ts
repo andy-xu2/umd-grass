@@ -14,11 +14,7 @@ import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq, desc } from 'drizzle-orm'
 import type { Season } from '@/lib/types'
-
-function isAdmin(userId: string): boolean {
-  const adminId = process.env.NEXT_PUBLIC_ADMIN_USER_ID
-  return !!adminId && userId === adminId
-}
+import { isAdmin } from '@/lib/utils'
 
 export async function GET() {
   const supabase = await createClient()

@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { getSkillTier } from '@/lib/mock-data'
 import { cn, getInitials } from '@/lib/utils'
 import type { LeaderboardEntry } from '@/lib/types'
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 
 interface LeaderboardRowProps {
   entry: LeaderboardEntry
@@ -68,15 +69,35 @@ export function LeaderboardRow({ entry, currentUserId }: LeaderboardRowProps) {
         </div>
       </div>
 
-      <div className="text-right">
-        {unranked ? (
-          <p className="text-sm text-muted-foreground">Hidden</p>
-        ) : (
-          <>
-            <p className="text-xl font-bold text-primary">{entry.rr}</p>
-            <p className="text-xs text-muted-foreground">RR</p>
-          </>
+      <div className="flex items-center gap-3">
+        {/* Rank trend */}
+        {!unranked && entry.rankTrend != null && entry.rankTrend !== 0 && (
+          <div className={cn(
+            'flex items-center gap-0.5 text-xs font-semibold',
+            entry.rankTrend > 0 ? 'text-green-500' : 'text-red-500'
+          )}>
+            {entry.rankTrend > 0 ? (
+              <TrendingUp className="h-3.5 w-3.5" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5" />
+            )}
+            <span>{Math.abs(entry.rankTrend)}</span>
+          </div>
         )}
+        {!unranked && entry.rankTrend === 0 && (
+          <Minus className="h-3.5 w-3.5 text-muted-foreground/50" />
+        )}
+
+        <div className="text-right">
+          {unranked ? (
+            <p className="text-sm text-muted-foreground">Hidden</p>
+          ) : (
+            <>
+              <p className="text-xl font-bold text-primary">{entry.rr}</p>
+              <p className="text-xs text-muted-foreground">RR</p>
+            </>
+          )}
+        </div>
       </div>
     </Link>
   )

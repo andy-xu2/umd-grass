@@ -5,14 +5,13 @@ import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq, desc } from 'drizzle-orm'
 import type { Season, UserWithStats } from '@/lib/types'
 import AdminClient from './admin-client'
-
-const ADMIN_ID = process.env.NEXT_PUBLIC_ADMIN_USER_ID
+import { isAdmin } from '@/lib/utils'
 
 export default async function AdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user || !ADMIN_ID || user.id !== ADMIN_ID) redirect('/dashboard')
+  if (!user || !isAdmin(user.id)) redirect('/dashboard')
 
   const allSeasons = await db.select().from(seasons).orderBy(desc(seasons.startedAt))
   const seasonList: Season[] = allSeasons.map(s => ({

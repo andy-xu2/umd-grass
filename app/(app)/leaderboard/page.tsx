@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, desc, gt, and, count } from 'drizzle-orm'
+import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
+import { eq, desc, gt, and, count, inArray } from 'drizzle-orm'
 import type { LeaderboardEntry, Season } from '@/lib/types'
 import LeaderboardClient from './leaderboard-client'
 
@@ -45,10 +45,38 @@ export default async function LeaderboardPage() {
     entries = rows.map(row => {
       if (row.isRevealed) {
         rankCounter++
-        return { ...row, rank: rankCounter }
+        return { ...row, rank: rankCounter, rankTrend: null }
       }
-      return { ...row, rank: null }
+      return { ...row, rank: null, rankTrend: null }
     })
+
+    // Calculate rank trends from most recent rr_changes
+    const playerIds = entries.map(e => e.userId)
+    if (playerIds.length > 0) {
+      const recentChanges = await db
+        .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore, createdAt: rrChanges.createdAt })
+        .from(rrChanges)
+        .where(and(eq(rrChanges.seasonId, seasonId), inArray(rrChanges.userId, playerIds)))
+        .orderBy(desc(rrChanges.createdAt))
+
+      // Keep only the most recent change per player
+      const latestRrBefore = new Map<string, number>()
+      for (const change of recentChanges) {
+        if (!latestRrBefore.has(change.userId)) {
+          latestRrBefore.set(change.userId, change.rrBefore)
+        }
+      }
+
+      const revealedEntries = entries.filter(e => e.rank != null)
+      for (const entry of entries) {
+        if (entry.rank == null) continue
+        const rrBefore = latestRrBefore.get(entry.userId)
+        if (rrBefore == null) { entry.rankTrend = 0; continue }
+        // How many revealed peers (excluding this player) had higher RR than rrBefore?
+        const prevRank = revealedEntries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
+        entry.rankTrend = prevRank - entry.rank // positive = moved up
+      }
+    }
   }
 
   let me = null
