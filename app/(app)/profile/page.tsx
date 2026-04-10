@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, and, gt, count, desc } from 'drizzle-orm'
+import { eq, and, gt, count, desc, gte } from 'drizzle-orm'
+import { PLACEMENT_GAMES } from '@/lib/elo'
 import type { Season, AllTimeStats } from '@/lib/types'
 import ProfileClient from './profile-client'
 
@@ -26,12 +27,21 @@ export default async function ProfilePage() {
     endedAt: s.endedAt?.toISOString() ?? null,
   }))
 
+  // Deduplicate by seasonId — take the row with the most games played per season
+  // (guards against duplicate season_stats rows)
+  const seasonBest = new Map<string, typeof allTimeRows[number]>()
+  for (const row of allTimeRows) {
+    const cur = seasonBest.get(row.seasonId)
+    if (!cur || row.gamesPlayed > cur.gamesPlayed) seasonBest.set(row.seasonId, row)
+  }
+  const dedupedRows = Array.from(seasonBest.values())
+
   const allTime: AllTimeStats = {
-    totalGames: allTimeRows.reduce((s, r) => s + r.gamesPlayed, 0),
-    totalWins: allTimeRows.reduce((s, r) => s + r.wins, 0),
-    totalLosses: allTimeRows.reduce((s, r) => s + r.losses, 0),
-    peakRR: allTimeRows.reduce((max, r) => Math.max(max, r.rr), 0),
-    seasonsPlayed: allTimeRows.filter(r => r.gamesPlayed > 0).length,
+    totalGames: dedupedRows.reduce((s, r) => s + r.gamesPlayed, 0),
+    totalWins: dedupedRows.reduce((s, r) => s + r.wins, 0),
+    totalLosses: dedupedRows.reduce((s, r) => s + r.losses, 0),
+    peakRR: dedupedRows.reduce((max, r) => Math.max(max, r.rr), 0),
+    seasonsPlayed: dedupedRows.filter(r => r.gamesPlayed > 0).length,
   }
 
   const seasonId = allSeasons.find(s => s.isActive)?.id ?? null
@@ -40,10 +50,12 @@ export default async function ProfilePage() {
   let rank: number | null = null
 
   if (seasonId) {
+    // Take the row with the most games played (guards against duplicate rows)
     const [stat] = await db
       .select()
       .from(seasonStats)
       .where(and(eq(seasonStats.userId, user.id), eq(seasonStats.seasonId, seasonId)))
+      .orderBy(desc(seasonStats.gamesPlayed))
 
     if (stat) {
       stats = {
@@ -53,16 +65,20 @@ export default async function ProfilePage() {
         losses: stat.losses,
       }
 
-      const [{ value }] = await db
-        .select({ value: count() })
-        .from(seasonStats)
-        .where(
-          and(
-            eq(seasonStats.seasonId, seasonId),
-            gt(seasonStats.rr, stat.rr),
-          ),
-        )
-      rank = Number(value) + 1
+      // Only ranked players (≥ PLACEMENT_GAMES) get a rank number
+      if (stat.gamesPlayed >= PLACEMENT_GAMES) {
+        const [{ value }] = await db
+          .select({ value: count() })
+          .from(seasonStats)
+          .where(
+            and(
+              eq(seasonStats.seasonId, seasonId),
+              gt(seasonStats.rr, stat.rr),
+              gte(seasonStats.gamesPlayed, PLACEMENT_GAMES),
+            ),
+          )
+        rank = Number(value) + 1
+      }
     }
   }
 

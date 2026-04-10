@@ -7,7 +7,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons, matches } from '@/drizzle/schema'
-import { eq, and, gt, count, or } from 'drizzle-orm'
+import { eq, and, gt, count, or, desc } from 'drizzle-orm'
+import { PLACEMENT_GAMES } from '@/lib/elo'
 import { isAdmin } from '@/lib/utils'
 
 export async function GET(
@@ -38,24 +39,30 @@ export async function GET(
   let rank: number | null = null
 
   if (resolvedSeasonId) {
+    // Take the row with the most games played (guards against duplicate rows)
     const [seasonStat] = await db
       .select()
       .from(seasonStats)
       .where(and(eq(seasonStats.userId, id), eq(seasonStats.seasonId, resolvedSeasonId)))
+      .orderBy(desc(seasonStats.gamesPlayed))
 
     if (seasonStat) {
       stats = seasonStat
 
-      const [{ value }] = await db
-        .select({ value: count() })
-        .from(seasonStats)
-        .where(
-          and(
-            eq(seasonStats.seasonId, resolvedSeasonId),
-            gt(seasonStats.rr, seasonStat.rr),
-          ),
-        )
-      rank = Number(value) + 1
+      // Only ranked players (≥ PLACEMENT_GAMES) get a rank number
+      if (seasonStat.gamesPlayed >= PLACEMENT_GAMES) {
+        const [{ value }] = await db
+          .select({ value: count() })
+          .from(seasonStats)
+          .where(
+            and(
+              eq(seasonStats.seasonId, resolvedSeasonId),
+              gt(seasonStats.rr, seasonStat.rr),
+              gt(seasonStats.gamesPlayed, PLACEMENT_GAMES - 1),
+            ),
+          )
+        rank = Number(value) + 1
+      }
     }
   }
 

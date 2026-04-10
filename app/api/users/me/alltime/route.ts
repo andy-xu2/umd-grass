@@ -18,11 +18,19 @@ export async function GET() {
     .from(seasonStats)
     .where(eq(seasonStats.userId, user.id))
 
-  const totalGames = rows.reduce((s, r) => s + r.gamesPlayed, 0)
-  const totalWins = rows.reduce((s, r) => s + r.wins, 0)
-  const totalLosses = rows.reduce((s, r) => s + r.losses, 0)
-  const peakRR = rows.reduce((max, r) => Math.max(max, r.rr), 0)
-  const seasonsPlayed = rows.filter(r => r.gamesPlayed > 0).length
+  // Deduplicate by seasonId — take the row with the most games played per season
+  const seasonBest = new Map<string, typeof rows[number]>()
+  for (const row of rows) {
+    const cur = seasonBest.get(row.seasonId)
+    if (!cur || row.gamesPlayed > cur.gamesPlayed) seasonBest.set(row.seasonId, row)
+  }
+  const deduped = Array.from(seasonBest.values())
+
+  const totalGames = deduped.reduce((s, r) => s + r.gamesPlayed, 0)
+  const totalWins = deduped.reduce((s, r) => s + r.wins, 0)
+  const totalLosses = deduped.reduce((s, r) => s + r.losses, 0)
+  const peakRR = deduped.reduce((max, r) => Math.max(max, r.rr), 0)
+  const seasonsPlayed = deduped.filter(r => r.gamesPlayed > 0).length
 
   const result: AllTimeStats = {
     totalGames,

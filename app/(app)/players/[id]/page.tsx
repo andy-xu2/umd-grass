@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { MatchCard } from '@/components/match-card'
 import { SeasonSelector } from '@/components/season-selector'
 import { cn, getInitials } from '@/lib/utils'
-import { getSkillTier } from '@/lib/mock-data'
+import { getSkillTier, isUnranked } from '@/lib/mock-data'
 import { Trophy, Gamepad2, Target, TrendingUp, ArrowLeft, User } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
@@ -134,7 +134,7 @@ export default function PlayerProfilePage() {
   const rr = stats?.rr ?? 0
   const gamesPlayed = stats?.gamesPlayed ?? 0
   const wins = stats?.wins ?? 0
-  const unranked = gamesPlayed === 0
+  const unranked = isUnranked(gamesPlayed)
   const tier = getSkillTier(rr)
   const winRate = getWinRate(wins, gamesPlayed)
 
