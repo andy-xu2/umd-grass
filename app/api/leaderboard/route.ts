@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
       })
       .from(seasonStats)
       .innerJoin(users, eq(seasonStats.userId, users.id))
+      .where(eq(users.isDeleted, false))
       .groupBy(users.id, users.name, users.avatarUrl)
       .having(sql`sum(${seasonStats.gamesPlayed}) >= 1`)
       .orderBy(desc(sql`sum(${seasonStats.wins})`), desc(sql`max(${seasonStats.rr})`))
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
-    .where(and(eq(seasonStats.seasonId, seasonId), gte(seasonStats.gamesPlayed, 5)))
+    .where(and(eq(seasonStats.seasonId, seasonId), gte(seasonStats.gamesPlayed, 5), eq(users.isDeleted, false)))
     .orderBy(desc(seasonStats.rr))
 
   let rankCounter = 0

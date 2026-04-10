@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Trophy, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
+import { isDisposableEmail } from '@/lib/blocked-email-domains'
 import { toast } from 'sonner'
 
 export default function SignupPage() {
@@ -23,6 +24,12 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirmPassword) return
+
+    if (isDisposableEmail(email)) {
+      toast.error('Please use a real email address. Disposable email providers are not allowed.')
+      return
+    }
+
     setIsLoading(true)
 
     const supabase = createClient()

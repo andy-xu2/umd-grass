@@ -96,6 +96,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [renameName, setRenameName] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
 
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
+
   // Match management
   const [matches, setMatches] = useState<MatchResponse[]>([])
   const [loadingMatches, setLoadingMatches] = useState(false)
@@ -215,6 +217,19 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to update RR')
     }
     setIsSavingRr(false)
+  }
+
+  async function handleDeleteUser(userId: string, userName: string) {
+    setDeletingUserId(userId)
+    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' })
+    if (res.ok) {
+      toast.success(`${userName} has been deleted`)
+      setUsersForSeason(prev => prev.filter(u => u.id !== userId))
+    } else {
+      const data = await res.json()
+      toast.error(data.error ?? 'Failed to delete user')
+    }
+    setDeletingUserId(null)
   }
 
   async function handleRename() {
@@ -526,6 +541,41 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                         >
                           <UserPen className="h-3.5 w-3.5" />
                         </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              disabled={deletingUserId === user.id}
+                              title="Delete player"
+                            >
+                              {deletingUserId === user.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Trash2 className="h-3.5 w-3.5" />
+                              }
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete {user.name}?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will remove <strong>{user.name}</strong> from all leaderboards and
+                                revoke their login. Their past matches will remain but show{' '}
+                                <strong>Deleted User</strong> in place of their name. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDeleteUser(user.id, user.name)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         <Dialog
                           open={editUser?.id === user.id}
                           onOpenChange={open => {

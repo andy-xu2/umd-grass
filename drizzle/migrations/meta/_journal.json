@@ -8,6 +8,13 @@
       "when": 1775590983525,
       "tag": "0000_elite_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1775829055891,
+      "tag": "0001_ancient_vulture",
+      "breakpoints": true
     }
   ]
 }

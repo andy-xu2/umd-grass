@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import type { UserWithStats } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     resolvedSeasonId = activeSeason?.id ?? null
   }
 
-  const allUsers = await db.select().from(users)
+  const allUsers = await db.select().from(users).where(eq(users.isDeleted, false))
 
   if (!resolvedSeasonId) {
     const result: UserWithStats[] = allUsers.map(u => ({

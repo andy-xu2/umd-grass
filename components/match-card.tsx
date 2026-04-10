@@ -13,6 +13,9 @@ interface MatchCardProps {
 }
 
 function PlayerLink({ player, currentUserId }: { player: PlayerInfo; currentUserId: string }) {
+  if (player.name === 'Deleted User') {
+    return <span className="text-xs font-medium text-muted-foreground">{player.name}</span>
+  }
   const href = player.id === currentUserId ? '/profile' : `/players/${player.id}`
   return (
     <Link
@@ -140,19 +143,25 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           >
             <div className="flex -space-x-2">
               {[match.team1Player1, match.team1Player2].map(p => (
-                <Link
-                  key={p.id}
-                  href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
-                  onClick={e => e.stopPropagation()}
-                  className="transition-opacity hover:opacity-80"
-                >
-                  <Avatar className="h-10 w-10 border-2 border-background">
-                    {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
-                    <AvatarFallback className="bg-secondary text-xs">
-                      {getInitials(p.name)}
-                    </AvatarFallback>
+                p.name === 'Deleted User' ? (
+                  <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
+                    <AvatarFallback className="bg-secondary text-xs">?</AvatarFallback>
                   </Avatar>
-                </Link>
+                ) : (
+                  <Link
+                    key={p.id}
+                    href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
+                    onClick={e => e.stopPropagation()}
+                    className="transition-opacity hover:opacity-80"
+                  >
+                    <Avatar className="h-10 w-10 border-2 border-background">
+                      {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
+                      <AvatarFallback className="bg-secondary text-xs">
+                        {getInitials(p.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                )
               ))}
             </div>
             <div className="text-center">
@@ -192,19 +201,25 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           >
             <div className="flex -space-x-2">
               {[match.team2Player1, match.team2Player2].map(p => (
-                <Link
-                  key={p.id}
-                  href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
-                  onClick={e => e.stopPropagation()}
-                  className="transition-opacity hover:opacity-80"
-                >
-                  <Avatar className="h-10 w-10 border-2 border-background">
-                    {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
-                    <AvatarFallback className="bg-secondary text-xs">
-                      {getInitials(p.name)}
-                    </AvatarFallback>
+                p.name === 'Deleted User' ? (
+                  <Avatar key={p.id} className="h-10 w-10 border-2 border-background">
+                    <AvatarFallback className="bg-secondary text-xs">?</AvatarFallback>
                   </Avatar>
-                </Link>
+                ) : (
+                  <Link
+                    key={p.id}
+                    href={p.id === currentUserId ? '/profile' : `/players/${p.id}`}
+                    onClick={e => e.stopPropagation()}
+                    className="transition-opacity hover:opacity-80"
+                  >
+                    <Avatar className="h-10 w-10 border-2 border-background">
+                      {p.avatarUrl && <AvatarImage src={p.avatarUrl} alt={p.name} />}
+                      <AvatarFallback className="bg-secondary text-xs">
+                        {getInitials(p.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                )
               ))}
             </div>
             <div className="text-center">

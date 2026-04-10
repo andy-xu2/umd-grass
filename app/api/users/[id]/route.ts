@@ -1,12 +1,13 @@
 // GET /api/users/[id]            — public profile for any user + active-season stats + rank
 // GET /api/users/[id]?seasonId=  — same but for the specified season
 // PATCH /api/users/[id]          — admin: update user's name
+// DELETE /api/users/[id]         — admin: soft-delete user + revoke Supabase Auth
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-server'
+import { createClient, createAdminClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasonStats, seasons } from '@/drizzle/schema'
-import { eq, and, gt, count } from 'drizzle-orm'
+import { users, seasonStats, seasons, matches } from '@/drizzle/schema'
+import { eq, and, gt, count, or } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 
 export async function GET(
@@ -20,7 +21,7 @@ export async function GET(
   const { id } = await params
 
   const [profile] = await db.select().from(users).where(eq(users.id, id))
-  if (!profile) {
+  if (!profile || profile.isDeleted) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
@@ -84,4 +85,45 @@ export async function PATCH(
   if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   return NextResponse.json({ ...updated, createdAt: updated.createdAt.toISOString() })
+}
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAdmin(user.id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id } = await params
+
+  const [target] = await db.select().from(users).where(eq(users.id, id))
+  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (target.isDeleted) return NextResponse.json({ error: 'User already deleted' }, { status: 409 })
+
+  // Auto-reject any pending matches involving this user so they don't linger
+  await db
+    .update(matches)
+    .set({ status: 'REJECTED' })
+    .where(
+      and(
+        eq(matches.status, 'PENDING'),
+        or(
+          eq(matches.team1Player1Id, id),
+          eq(matches.team1Player2Id, id),
+          eq(matches.team2Player1Id, id),
+          eq(matches.team2Player2Id, id),
+        ),
+      ),
+    )
+
+  // Soft-delete the user row
+  await db.update(users).set({ isDeleted: true }).where(eq(users.id, id))
+
+  // Delete from Supabase Auth so they can't log in
+  const adminSupabase = createAdminClient()
+  await adminSupabase.auth.admin.deleteUser(id)
+
+  return NextResponse.json({ ok: true })
 }
