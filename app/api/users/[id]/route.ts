@@ -1,11 +1,13 @@
 // GET /api/users/[id]            — public profile for any user + active-season stats + rank
 // GET /api/users/[id]?seasonId=  — same but for the specified season
+// PATCH /api/users/[id]          — admin: update user's name
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'
 import { eq, and, gt, count } from 'drizzle-orm'
+import { isAdmin } from '@/lib/utils'
 
 export async function GET(
   request: NextRequest,
@@ -62,4 +64,24 @@ export async function GET(
     stats,
     rank,
   })
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!isAdmin(user.id)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { id } = await params
+  const body = await request.json()
+  const name = typeof body.name === 'string' ? body.name.trim() : null
+  if (!name) return NextResponse.json({ error: 'Name is required' }, { status: 400 })
+
+  const [updated] = await db.update(users).set({ name }).where(eq(users.id, id)).returning()
+  if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+  return NextResponse.json({ ...updated, createdAt: updated.createdAt.toISOString() })
 }

@@ -42,7 +42,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
-import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search } from 'lucide-react'
+import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search, UserPen } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
 
 interface Props {
@@ -91,6 +91,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [editUser, setEditUser] = useState<UserWithStats | null>(null)
   const [editRr, setEditRr] = useState('')
   const [isSavingRr, setIsSavingRr] = useState(false)
+
+  const [renameUser, setRenameUser] = useState<UserWithStats | null>(null)
+  const [renameName, setRenameName] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
 
   // Match management
   const [matches, setMatches] = useState<MatchResponse[]>([])
@@ -211,6 +215,29 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to update RR')
     }
     setIsSavingRr(false)
+  }
+
+  async function handleRename() {
+    if (!renameUser) return
+    const trimmed = renameName.trim()
+    if (!trimmed) { toast.error('Name cannot be empty'); return }
+    setIsRenaming(true)
+    const res = await fetch(`/api/users/${renameUser.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: trimmed }),
+    })
+    if (res.ok) {
+      toast.success('Name updated')
+      setUsersForSeason(prev =>
+        prev.map(u => u.id === renameUser.id ? { ...u, name: trimmed } : u)
+      )
+      setRenameUser(null)
+    } else {
+      const data = await res.json()
+      toast.error(data.error ?? 'Failed to update name')
+    }
+    setIsRenaming(false)
   }
 
   async function handleDeleteMatch(matchId: string) {
@@ -422,9 +449,9 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         <CardHeader>
           <div className="flex items-start justify-between">
             <div>
-              <CardTitle>Manage Player RR</CardTitle>
+              <CardTitle>Manage Players</CardTitle>
               <CardDescription className="mt-1">
-                Directly set any player&apos;s RR for the selected season.
+                Rename players or directly set their RR for the selected season.
               </CardDescription>
             </div>
             <SeasonSelector
@@ -494,6 +521,16 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                         {user.stats ? `${user.stats.wins} / ${user.stats.losses}` : '—'}
                       </TableCell>
                       <TableCell>
+                        <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Rename player"
+                          onClick={() => { setRenameUser(user); setRenameName(user.name ?? '') }}
+                        >
+                          <UserPen className="h-3.5 w-3.5" />
+                        </Button>
                         <Dialog
                           open={editUser?.id === user.id}
                           onOpenChange={open => {
@@ -550,6 +587,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                             </div>
                           </DialogContent>
                         </Dialog>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -699,6 +737,36 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
           )}
         </CardContent>
       </Card>
+
+      {/* Rename Player Dialog */}
+      <Dialog open={!!renameUser} onOpenChange={open => !open && setRenameUser(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Rename Player</DialogTitle>
+            <DialogDescription>
+              Change the display name for {renameUser?.name}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="rename-input">Name</Label>
+              <Input
+                id="rename-input"
+                value={renameName}
+                onChange={e => setRenameName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleRename()}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleRename} disabled={isRenaming}>
+                {isRenaming && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save
+              </Button>
+              <Button variant="outline" onClick={() => setRenameUser(null)}>Cancel</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Season Dates Dialog */}
       <Dialog open={!!editSeasonDates} onOpenChange={open => !open && setEditSeasonDates(null)}>
