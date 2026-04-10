@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
-import { eq, desc, gte, and, inArray } from 'drizzle-orm'
+import { eq, desc, gte, and, inArray, sql } from 'drizzle-orm'
 import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
@@ -16,6 +16,40 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const seasonIdParam = searchParams.get('seasonId')
+
+  // ── Lifetime leaderboard ────────────────────────────────────────────────────
+  if (seasonIdParam === 'lifetime') {
+    const rows = await db
+      .select({
+        userId: users.id,
+        name: users.name,
+        avatarUrl: users.avatarUrl,
+        totalGames: sql<number>`sum(${seasonStats.gamesPlayed})::int`,
+        totalWins: sql<number>`sum(${seasonStats.wins})::int`,
+        totalLosses: sql<number>`sum(${seasonStats.losses})::int`,
+        peakRR: sql<number>`max(${seasonStats.rr})::int`,
+      })
+      .from(seasonStats)
+      .innerJoin(users, eq(seasonStats.userId, users.id))
+      .groupBy(users.id, users.name, users.avatarUrl)
+      .having(sql`sum(${seasonStats.gamesPlayed}) >= 1`)
+      .orderBy(desc(sql`sum(${seasonStats.wins})`), desc(sql`max(${seasonStats.rr})`))
+
+    let rankCounter = 0
+    const entries: LeaderboardEntry[] = rows.map(row => ({
+      userId: row.userId,
+      name: row.name ?? '',
+      avatarUrl: row.avatarUrl,
+      rr: row.peakRR,
+      gamesPlayed: row.totalGames,
+      wins: row.totalWins,
+      losses: row.totalLosses,
+      rank: ++rankCounter,
+      rankTrend: null,
+    }))
+
+    return NextResponse.json({ entries, seasonId: 'lifetime' } satisfies LeaderboardResponse)
+  }
 
   let seasonId = seasonIdParam
   if (!seasonId) {

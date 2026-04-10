@@ -20,9 +20,12 @@ export async function PATCH(
   }
 
   const { id } = await params
-  const body = await request.json() as { startDate?: string | null; endDate?: string | null }
+  const body = await request.json() as { startDate?: string | null; endDate?: string | null; name?: string }
 
-  const updates: { startedAt?: Date; endedAt?: Date | null } = {}
+  const updates: { startedAt?: Date; endedAt?: Date | null; name?: string } = {}
+  if ('name' in body && typeof body.name === 'string' && body.name.trim()) {
+    updates.name = body.name.trim()
+  }
   if ('startDate' in body) {
     updates.startedAt = body.startDate ? new Date(body.startDate + 'T12:00:00Z') : new Date()
   }

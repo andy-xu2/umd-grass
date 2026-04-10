@@ -179,12 +179,17 @@ export default async function DashboardPage() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
 
+  const [profile] = await db.select({ name: users.name }).from(users).where(eq(users.id, user.id))
+  const firstName = profile?.name?.split(' ')[0] ?? null
+
   return (
     <div className="space-y-6">
       {/* Header renders instantly */}
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Welcome back</p>
+        <p className="text-sm text-muted-foreground">
+          {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
+        </p>
       </div>
 
       {/* Two-column layout — each section streams in independently */}

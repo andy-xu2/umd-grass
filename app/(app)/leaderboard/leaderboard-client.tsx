@@ -36,26 +36,24 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
 
   const loadSeason = useCallback(async (sid: string) => {
     setLoading(true)
-    const qs = `?seasonId=${sid}`
-    const [lbRes, meRes] = await Promise.all([
-      fetch(`/api/leaderboard${qs}`),
-      fetch(`/api/users/me${qs}`),
-    ])
+    const isLifetime = sid === 'lifetime'
+    const lbRes = await fetch(`/api/leaderboard?seasonId=${sid}`)
     if (lbRes.ok) {
       const data: LeaderboardResponse = await lbRes.json()
       setEntries(data.entries)
       loadedSeasonId.current = sid
     }
-    if (meRes.ok) {
-      setMe(await meRes.json())
+    if (!isLifetime) {
+      const meRes = await fetch(`/api/users/me?seasonId=${sid}`)
+      if (meRes.ok) setMe(await meRes.json())
     }
     setLoading(false)
   }, [])
 
-  function handleSeasonChange(id: string | null) {
+  function handleSeasonChange(id: string) {
     setSeasonId(id)
     setSearch('')
-    if (id && id !== loadedSeasonId.current) loadSeason(id)
+    if (id !== loadedSeasonId.current) loadSeason(id)
   }
 
   const filteredEntries = useMemo(() => {
@@ -80,50 +78,53 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
           onChange={handleSeasonChange}
           className="w-44"
           initialSeasons={initialSeasons}
+          allowLifetime
         />
       </div>
 
       {/* Current User Rank Card */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardContent className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
-              <Trophy className="h-6 w-6 text-primary" />
+      {seasonId !== 'lifetime' && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20">
+                <Trophy className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Your Rank</p>
+                {loading ? (
+                  <Skeleton className="h-8 w-12 mt-1" />
+                ) : (
+                  <p className="text-2xl font-bold">
+                    {me && !isUnranked(me.stats?.gamesPlayed ?? 0) && me.rank != null
+                      ? `#${me.rank}`
+                      : '—'}
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Your Rank</p>
+            <div className="text-right">
               {loading ? (
-                <Skeleton className="h-8 w-12 mt-1" />
+                <Skeleton className="h-8 w-16 mt-1 ml-auto" />
+              ) : me && isUnranked(me.stats?.gamesPlayed ?? 0) ? (
+                <>
+                  <p className="text-sm text-muted-foreground">Placements</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {me.stats?.gamesPlayed ?? 0}/5
+                  </p>
+                </>
               ) : (
-                <p className="text-2xl font-bold">
-                  {me && !isUnranked(me.stats?.gamesPlayed ?? 0) && me.rank != null
-                    ? `#${me.rank}`
-                    : '—'}
-                </p>
+                <>
+                  <p className="text-sm text-muted-foreground">Current RR</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {me?.stats?.rr ?? '—'}
+                  </p>
+                </>
               )}
             </div>
-          </div>
-          <div className="text-right">
-            {loading ? (
-              <Skeleton className="h-8 w-16 mt-1 ml-auto" />
-            ) : me && isUnranked(me.stats?.gamesPlayed ?? 0) ? (
-              <>
-                <p className="text-sm text-muted-foreground">Placements</p>
-                <p className="text-2xl font-bold text-primary">
-                  {me.stats?.gamesPlayed ?? 0}/5
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">Current RR</p>
-                <p className="text-2xl font-bold text-primary">
-                  {me?.stats?.rr ?? '—'}
-                </p>
-              </>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -195,7 +196,9 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {search ? `Search Results (${filteredEntries.length})` : 'All Rankings'}
+            {search
+              ? `Search Results (${filteredEntries.length})`
+              : seasonId === 'lifetime' ? 'Lifetime Rankings' : 'All Rankings'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 p-4 pt-0">

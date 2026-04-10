@@ -17,9 +17,11 @@ interface SeasonSelectorProps {
   /** Pre-fetched seasons from a server component. When provided the internal
    *  fetch is skipped and the selector renders immediately with no loading delay. */
   initialSeasons?: Season[]
+  /** When true, adds a "Lifetime" option at the top of the list. */
+  allowLifetime?: boolean
 }
 
-export function SeasonSelector({ value, onChange, className, initialSeasons }: SeasonSelectorProps) {
+export function SeasonSelector({ value, onChange, className, initialSeasons, allowLifetime }: SeasonSelectorProps) {
   const [seasons, setSeasons] = useState<Season[]>(initialSeasons ?? [])
   const [loading, setLoading] = useState(initialSeasons === undefined)
 
@@ -48,6 +50,9 @@ export function SeasonSelector({ value, onChange, className, initialSeasons }: S
         <SelectValue placeholder="Select season" />
       </SelectTrigger>
       <SelectContent>
+        {allowLifetime && (
+          <SelectItem value="lifetime">Lifetime</SelectItem>
+        )}
         {seasons.map(season => (
           <SelectItem key={season.id} value={season.id}>
             {season.name}

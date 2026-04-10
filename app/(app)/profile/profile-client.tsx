@@ -239,8 +239,8 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
       </Card>
 
       {/* Tabs: This Season / All Time */}
-      <Tabs defaultValue="season">
-        <div className="flex items-center justify-between gap-4">
+      <Tabs defaultValue="season" onValueChange={v => { if (v === 'season' && !seasonId && initialSeasons.length > 0) { const active = initialSeasons.find(s => s.isActive) ?? initialSeasons[0]; handleSeasonChange(active.id) } }}>
+        <div className="flex flex-wrap items-center gap-2">
           <TabsList>
             <TabsTrigger value="season">This Season</TabsTrigger>
             <TabsTrigger value="alltime">All Time</TabsTrigger>
@@ -248,7 +248,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
           <SeasonSelector
             value={seasonId}
             onChange={handleSeasonChange}
-            className="w-44"
+            className="w-40 h-9 text-sm"
             initialSeasons={initialSeasons}
           />
         </div>

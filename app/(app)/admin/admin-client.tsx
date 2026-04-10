@@ -40,7 +40,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { SeasonSelector } from '@/components/season-selector'
 import { toast } from 'sonner'
 import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search, UserPen } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
@@ -79,6 +78,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [isCreating, setIsCreating] = useState(false)
 
   const [editSeasonDates, setEditSeasonDates] = useState<Season | null>(null)
+  const [editSeasonName, setEditSeasonName] = useState('')
   const [editStartDate, setEditStartDate] = useState('')
   const [editEndDate, setEditEndDate] = useState('')
   const [isSavingDates, setIsSavingDates] = useState(false)
@@ -278,15 +278,19 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        name: editSeasonName.trim() || editSeasonDates.name,
         startDate: editStartDate || null,
         endDate: editEndDate || null,
       }),
     })
     if (res.ok) {
-      toast.success('Season dates updated')
+      toast.success('Season updated')
       setEditSeasonDates(null)
       const seasonsRes = await fetch('/api/seasons')
-      if (seasonsRes.ok) setSeasons(await seasonsRes.json())
+      if (seasonsRes.ok) {
+        const data: Season[] = await seasonsRes.json()
+        setSeasons(data)
+      }
     } else {
       const data = await res.json()
       toast.error(data.error ?? 'Failed to update dates')
@@ -427,6 +431,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                             title="Edit dates"
                             onClick={() => {
                               setEditSeasonDates(season)
+                              setEditSeasonName(season.name)
                               setEditStartDate(season.startedAt.split('T')[0])
                               setEditEndDate(season.endedAt ? season.endedAt.split('T')[0] : '')
                             }}
@@ -447,20 +452,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       {/* Manage Player RR */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Manage Players</CardTitle>
-              <CardDescription className="mt-1">
-                Rename players or directly set their RR for the selected season.
-              </CardDescription>
-            </div>
-            <SeasonSelector
-              value={selectedSeasonId}
-              onChange={handleSeasonChange}
-              className="w-44"
-              initialSeasons={seasons}
-            />
-          </div>
+          <CardTitle>Manage Players</CardTitle>
+          <CardDescription className="mt-1">
+            Rename players or directly set their RR for the active season.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingUsers ? (
@@ -772,12 +767,20 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       <Dialog open={!!editSeasonDates} onOpenChange={open => !open && setEditSeasonDates(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit Season Dates</DialogTitle>
+            <DialogTitle>Edit Season</DialogTitle>
             <DialogDescription>
-              {editSeasonDates?.name} — update the start and/or end date.
+              Update the name and dates for {editSeasonDates?.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-season-name">Season Name</Label>
+              <Input
+                id="edit-season-name"
+                value={editSeasonName}
+                onChange={e => setEditSeasonName(e.target.value)}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-start-date">Start Date</Label>
               <Input
