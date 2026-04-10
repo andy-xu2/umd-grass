@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
-import { eq, and, desc, gt, inArray } from 'drizzle-orm'
+import { eq, and, desc, gte, inArray } from 'drizzle-orm'
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
@@ -38,11 +38,19 @@ async function DashboardLeaderboard({ userId }: { userId: string }) {
     })
     .from(seasonStats)
     .innerJoin(users, eq(seasonStats.userId, users.id))
-    .where(and(eq(seasonStats.seasonId, activeSeason.id), gt(seasonStats.gamesPlayed, 0)))
+    .where(and(eq(seasonStats.seasonId, activeSeason.id), gte(seasonStats.gamesPlayed, 5)))
     .orderBy(desc(seasonStats.rr))
 
+  // Deduplicate by userId, keeping the row with the highest RR
+  const seen = new Map<string, typeof rows[number]>()
+  for (const row of rows) {
+    const existing = seen.get(row.userId)
+    if (!existing || row.rr > existing.rr) seen.set(row.userId, row)
+  }
+  const deduped = Array.from(seen.values()).sort((a, b) => b.rr - a.rr)
+
   let rankCounter = 0
-  const entries: LeaderboardEntry[] = rows.map(row => ({
+  const entries: LeaderboardEntry[] = deduped.map(row => ({
     ...row,
     rank: ++rankCounter,
     rankTrend: null,
