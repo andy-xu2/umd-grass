@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -15,7 +15,9 @@ import { SeasonSelector } from '@/components/season-selector'
 import { AvatarCropDialog } from '@/components/avatar-crop-dialog'
 import { toast } from 'sonner'
 import Link from 'next/link'
-import type { Season, AllTimeStats } from '@/lib/types'
+import { MatchCard } from '@/components/match-card'
+import { PLACEMENT_GAMES } from '@/lib/elo'
+import type { Season, AllTimeStats, MatchResponse } from '@/lib/types'
 
 type UserProfile = {
   id: string
@@ -48,6 +50,8 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   const [allTime] = useState<AllTimeStats>(initialAllTime)
   const [loadingSeason, setLoadingSeason] = useState(false)
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId)
+  const [allMatches, setAllMatches] = useState<MatchResponse[]>([])
+  const [loadingMatches, setLoadingMatches] = useState(true)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [cropSrc, setCropSrc] = useState<string | null>(null)
   const [avatarKey, setAvatarKey] = useState(0)
@@ -62,6 +66,13 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
       loadedSeasonId.current = sid
     }
     setLoadingSeason(false)
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/matches')
+      .then(r => r.ok ? r.json() : [])
+      .then(setAllMatches)
+      .finally(() => setLoadingMatches(false))
   }, [])
 
   function handleSeasonChange(sid: string | null) {
@@ -123,6 +134,20 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
     }
     setIsUploadingAvatar(false)
   }
+
+  // Matches for the selected season, newest first
+  const seasonMatches = allMatches
+    .filter(m => m.seasonId === seasonId && m.status === 'CONFIRMED')
+    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+
+  // First PLACEMENT_GAMES confirmed matches career-wide are placement games
+  const placementMatchIds = new Set(
+    allMatches
+      .filter(m => m.status === 'CONFIRMED')
+      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      .slice(0, PLACEMENT_GAMES)
+      .map(m => m.id),
+  )
 
   const stats = profile.stats
   const rr = stats?.rr ?? 0
@@ -315,15 +340,32 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
           <Card>
             <CardHeader>
               <CardTitle>Match History</CardTitle>
-              <CardDescription>All your recorded matches this season</CardDescription>
+              <CardDescription>All your confirmed matches this season</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="py-8 text-center">
-                <p className="text-muted-foreground">No matches played yet</p>
-                <Link href="/submit-match">
-                  <Button className="mt-4">Submit your first match</Button>
-                </Link>
-              </div>
+              {loadingMatches ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : seasonMatches.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-muted-foreground">No matches played yet</p>
+                  <Link href="/submit-match">
+                    <Button className="mt-4">Submit your first match</Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {seasonMatches.map(match => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      currentUserId={initialProfile.id}
+                      isPlacement={placementMatchIds.has(match.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

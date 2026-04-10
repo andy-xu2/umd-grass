@@ -74,6 +74,17 @@ export async function PATCH(
   ] as const
 
   await db.transaction(async tx => {
+    const now = new Date()
+
+    // Atomically claim the match — only succeeds if it's still PENDING.
+    // This prevents two team2 players confirming simultaneously and doubling gamesPlayed.
+    const [claimed] = await tx
+      .update(matches)
+      .set({ status: 'CONFIRMED', verifiedBy: user.id, verifiedAt: now })
+      .where(and(eq(matches.id, id), eq(matches.status, 'PENDING')))
+      .returning({ id: matches.id })
+    if (!claimed) return // another request already confirmed this match
+
     // Get or create season_stats for each player.
     // New players (no prior seasons) start at 0 RR.
     // Players joining a new season mid-season start at their decayed RR from
@@ -168,14 +179,6 @@ export async function PATCH(
     const t1p2Delta = calculateRrChange(t1p2Stats.rr, t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p2Lifetime, t1p2Stats.gamesPlayed, team1Won))
     const t2p1Delta = calculateRrChange(t2p1Stats.rr, t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p1Lifetime, t2p1Stats.gamesPlayed, !team1Won))
     const t2p2Delta = calculateRrChange(t2p2Stats.rr, t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p2Lifetime, t2p2Stats.gamesPlayed, !team1Won))
-
-    const now = new Date()
-
-    // Update match
-    await tx
-      .update(matches)
-      .set({ status: 'CONFIRMED', verifiedBy: user.id, verifiedAt: now })
-      .where(eq(matches.id, id))
 
     // Apply stats + record rr_changes for each player
     const updates: Array<{

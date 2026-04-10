@@ -8,6 +8,7 @@ import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
 import { buildMatchesForUser } from '@/app/api/matches/route'
+import { PLACEMENT_GAMES } from '@/lib/elo'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Clock, Trophy, Loader2 } from 'lucide-react'
@@ -116,6 +117,15 @@ async function DashboardMatches({ userId }: { userId: string }) {
       (m.team2Player1.id === userId || m.team2Player2.id === userId),
   )
 
+  // First PLACEMENT_GAMES confirmed matches (career-wide, sorted oldest first) are placement games
+  const placementMatchIds = new Set(
+    allMatches
+      .filter(m => m.status === 'CONFIRMED')
+      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      .slice(0, PLACEMENT_GAMES)
+      .map(m => m.id),
+  )
+
   return (
     <>
       {pendingToVerify.length > 0 && (
@@ -137,7 +147,7 @@ async function DashboardMatches({ userId }: { userId: string }) {
         <div className="space-y-2">
           {confirmedMatches.length > 0 ? (
             confirmedMatches.map(match => (
-              <MatchCard key={match.id} match={match} currentUserId={userId} compact />
+              <MatchCard key={match.id} match={match} currentUserId={userId} compact isPlacement={placementMatchIds.has(match.id)} />
             ))
           ) : (
             <div className="rounded-lg bg-secondary/30 p-6 text-center">

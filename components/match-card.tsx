@@ -12,6 +12,7 @@ interface MatchCardProps {
   match: MatchResponse
   currentUserId: string
   compact?: boolean
+  isPlacement?: boolean
 }
 
 function PlayerLink({ player, currentUserId }: { player: PlayerInfo; currentUserId: string }) {
@@ -30,7 +31,7 @@ function PlayerLink({ player, currentUserId }: { player: PlayerInfo; currentUser
   )
 }
 
-export function MatchCard({ match, currentUserId, compact = false }: MatchCardProps) {
+export function MatchCard({ match, currentUserId, compact = false, isPlacement = false }: MatchCardProps) {
   const onTeam1 =
     match.team1Player1.id === currentUserId || match.team1Player2.id === currentUserId
   const team1Won = match.team1Sets > match.team2Sets
@@ -69,16 +70,20 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
           </div>
         </div>
         {match.status === 'CONFIRMED' ? (
-          <div
-            className={cn(
-              'flex items-center gap-1 font-mono text-sm font-semibold',
-              rrChange > 0 ? 'text-primary' : 'text-destructive',
-            )}
-          >
-            {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-            {rrChange > 0 ? '+' : ''}
-            {rrChange}
-          </div>
+          isPlacement ? (
+            <span className="text-xs text-muted-foreground">Placement</span>
+          ) : (
+            <div
+              className={cn(
+                'flex items-center gap-1 font-mono text-sm font-semibold',
+                rrChange > 0 ? 'text-primary' : 'text-destructive',
+              )}
+            >
+              {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              {rrChange > 0 ? '+' : ''}
+              {rrChange}
+            </div>
+          )
         ) : (
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
@@ -116,16 +121,20 @@ export function MatchCard({ match, currentUserId, compact = false }: MatchCardPr
             </span>
           </div>
           {match.status === 'CONFIRMED' && (
-            <div
-              className={cn(
-                'flex items-center gap-1 font-mono text-sm font-semibold',
-                rrChange > 0 ? 'text-primary' : 'text-destructive',
-              )}
-            >
-              {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-              {rrChange > 0 ? '+' : ''}
-              {rrChange} RR
-            </div>
+            isPlacement ? (
+              <span className="text-xs text-muted-foreground">Placement game</span>
+            ) : (
+              <div
+                className={cn(
+                  'flex items-center gap-1 font-mono text-sm font-semibold',
+                  rrChange > 0 ? 'text-primary' : 'text-destructive',
+                )}
+              >
+                {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                {rrChange > 0 ? '+' : ''}
+                {rrChange} RR
+              </div>
+            )
           )}
           {match.status === 'PENDING' && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useMemo } from 'react'
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
 import {
   Card,
   CardContent,
@@ -153,6 +153,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     }
     setLoadingMatches(false)
   }, [])
+
+  useEffect(() => {
+    if (initialSeasonId) fetchMatches(initialSeasonId)
+  }, [initialSeasonId, fetchMatches])
 
   function handleSeasonChange(sid: string) {
     setSelectedSeasonId(sid)
