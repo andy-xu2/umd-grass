@@ -115,6 +115,12 @@ export function gainSoftCapMultiplier(rr: number): number {
  *   • The underdog who took that set gets a POSITIVE delta despite losing.
  *   • A true upset win (1000 beats 3000 2-0) still yields gains near +K.
  *
+ * For mismatched teams (e.g. 1500 + 2500):
+ *   On a WIN  — lower player uses team avg RR (boosted by teammate → gains less);
+ *               higher player uses their own RR (full individual credit).
+ *   On a LOSS — lower player uses their own RR (weaker link → penalized less);
+ *               higher player uses team avg RR (team dragged them down → penalized less).
+ *
  * The floor MIN_WIN_GAIN guarantees a minimum positive reward when the ELO math
  * expected a gain (base > 0) and the player won the majority of sets. This keeps
  * games near the 3000 soft cap meaningful.
@@ -141,19 +147,25 @@ export function calculateRrChange(
 ): number {
   const effectiveK = kOverride ?? K
   const actual = playerSetsWon / totalSets
+  const wonMatch = playerSetsWon * 2 > totalSets
 
-  // Higher-ranked player: use team average — protects them from being over-punished
-  // for a weak teammate dragging down the result.
-  // Lower-ranked player: use their own RR — they shouldn't gain/lose as much as their
-  // star teammate since the result is less surprising relative to their own skill level.
+  const teamAvg = (playerRR + teammateRR) / 2
+  const oppAvg = (oppRR1 + oppRR2) / 2
+  const isLower = playerRR < teammateRR
+
+  // On a WIN:
+  //   - Lower-ranked player uses team average RR (gained from stronger teammate → gains less)
+  //   - Higher-ranked player uses their own RR (full individual credit)
+  // On a LOSS:
+  //   - Lower-ranked player uses their own RR (weaker link → penalized less)
+  //   - Higher-ranked player uses team average RR (team dragged down → penalized less)
   let expected: number
-  if (playerRR >= teammateRR) {
-    const teamAvg = (playerRR + teammateRR) / 2
-    const oppAvg = (oppRR1 + oppRR2) / 2
+  if (wonMatch ? isLower : !isLower) {
     expected = expectedScoreTeam(teamAvg, oppAvg)
   } else {
     expected = expectedScore(playerRR, oppRR1, oppRR2)
   }
+
   let base = effectiveK * (actual - expected)
 
   // Soft gain cap: reduce gains (not losses) as RR approaches 3000+.
@@ -168,7 +180,6 @@ export function calculateRrChange(
   // won the majority of sets, ensure they get at least MIN_WIN_GAIN. This only
   // kicks in when the soft cap (not the set-fraction logic) reduced the gain to
   // near zero.
-  const wonMatch = playerSetsWon * 2 > totalSets
   if (wonMatch && base > 0 && result < MIN_WIN_GAIN) {
     return MIN_WIN_GAIN
   }

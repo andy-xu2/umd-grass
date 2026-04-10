@@ -18,8 +18,10 @@ export function getInitials(name: string): string {
 /** Returns true if the given user ID belongs to any admin account */
 export function isAdmin(userId: string): boolean {
   const adminIds = [
-    process.env.NEXT_PUBLIC_ADMIN_USER_ID,
-    process.env.NEXT_PUBLIC_ADMIN_USER_ID_2,
+    // Prefer private env vars (not exposed to client bundle).
+    // Falls back to NEXT_PUBLIC_ for backwards-compat with existing deployments.
+    process.env.ADMIN_USER_ID ?? process.env.NEXT_PUBLIC_ADMIN_USER_ID,
+    process.env.ADMIN_USER_ID_2 ?? process.env.NEXT_PUBLIC_ADMIN_USER_ID_2,
   ].filter(Boolean) as string[]
   return adminIds.includes(userId)
 }

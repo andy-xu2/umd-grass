@@ -8,6 +8,14 @@ import { db } from '@/lib/db'
 import { users } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 
+const ALLOWED_MIME_TYPES: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+}
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -23,7 +31,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No file provided' }, { status: 400 })
   }
 
-  const ext = file.name.split('.').pop()
+  // Validate MIME type against allowlist (never trust file.name or file.type from client alone)
+  const ext = ALLOWED_MIME_TYPES[file.type]
+  if (!ext) {
+    return NextResponse.json(
+      { error: 'Only JPEG, PNG, GIF, and WebP images are allowed' },
+      { status: 400 },
+    )
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return NextResponse.json({ error: 'File must be under 5 MB' }, { status: 400 })
+  }
+
   const path = `${user.id}/avatar.${ext}`
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
@@ -42,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   if (uploadError) {
     console.error('[avatar upload] Supabase storage error:', uploadError)
-    return NextResponse.json({ error: uploadError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
   }
 
   const { data: { publicUrl } } = admin.storage.from('avatars').getPublicUrl(path)
