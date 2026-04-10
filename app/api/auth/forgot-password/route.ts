@@ -32,13 +32,14 @@ export async function POST(request: Request) {
     })
 
     if (error || !data?.properties?.action_link) {
-      // User not found or other error — return success anyway (no enumeration)
+      console.error('[forgot-password] generateLink failed:', error)
       return successResponse
     }
 
-    await sendPasswordResetEmail(email, data.properties.action_link)
-  } catch {
-    // Swallow errors — always return success to the client
+    const result = await sendPasswordResetEmail(email, data.properties.action_link)
+    console.log('[forgot-password] Resend result:', JSON.stringify(result))
+  } catch (err) {
+    console.error('[forgot-password] unexpected error:', err)
   }
 
   return successResponse
