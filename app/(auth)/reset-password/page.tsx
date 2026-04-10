@@ -23,32 +23,43 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const supabase = createClient()
 
+    // Subscribe first — before any async work — so we never miss PASSWORD_RECOVERY
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') setReady(true)
+    })
+
     async function init() {
-      // PKCE flow (default in newer Supabase): token arrives as ?code= query param
-      const code = new URLSearchParams(window.location.search).get('code')
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code)
-        if (error) {
-          setLinkError(true)
-        } else {
-          setReady(true)
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const code = params.get('code')
+        const tokenHash = params.get('token_hash')
+        const type = params.get('type')
+
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code)
+          if (error) setLinkError(true)
+          else setReady(true)
+          return
         }
-        return
+
+        if (tokenHash && type === 'recovery') {
+          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+          if (error) setLinkError(true)
+          else setReady(true)
+          return
+        }
+
+        // Implicit flow fallback: check if session already set via hash
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) setReady(true)
+      } catch {
+        setLinkError(true)
       }
-
-      // Implicit flow fallback: token is in the URL hash, Supabase fires PASSWORD_RECOVERY
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'PASSWORD_RECOVERY') setReady(true)
-      })
-
-      // Also handle the case where the event already fired before we subscribed
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) setReady(true)
-
-      return () => subscription.unsubscribe()
     }
 
     init()
+
+    return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
