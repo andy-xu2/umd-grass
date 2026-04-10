@@ -115,7 +115,7 @@ export function gainSoftCapMultiplier(rr: number): number {
  *   • The underdog who took that set gets a POSITIVE delta despite losing.
  *   • A true upset win (1000 beats 3000 2-0) still yields gains near +K.
  *
- * For mismatched teams (e.g. 1500 + 2500):
+ * For mismatched teams (teammate RR difference > 500, e.g. 1500 + 2500):
  *   On a WIN  — lower player uses team avg RR (boosted by teammate → gains less);
  *               higher player uses their own RR (full individual credit).
  *   On a LOSS — lower player uses their own RR (weaker link → penalized less);
@@ -152,7 +152,9 @@ export function calculateRrChange(
   const teamAvg = (playerRR + teammateRR) / 2
   const oppAvg = (oppRR1 + oppRR2) / 2
   const isLower = playerRR < teammateRR
+  const isMismatch = Math.abs(playerRR - teammateRR) > 500
 
+  // Only apply team-average expected score when teammates are mismatched by > 500 RR.
   // On a WIN:
   //   - Lower-ranked player uses team average RR (gained from stronger teammate → gains less)
   //   - Higher-ranked player uses their own RR (full individual credit)
@@ -160,7 +162,7 @@ export function calculateRrChange(
   //   - Lower-ranked player uses their own RR (weaker link → penalized less)
   //   - Higher-ranked player uses team average RR (team dragged down → penalized less)
   let expected: number
-  if (wonMatch ? isLower : !isLower) {
+  if (isMismatch && (wonMatch ? isLower : !isLower)) {
     expected = expectedScoreTeam(teamAvg, oppAvg)
   } else {
     expected = expectedScore(playerRR, oppRR1, oppRR2)
