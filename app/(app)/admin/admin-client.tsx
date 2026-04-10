@@ -98,6 +98,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
 
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
+  const [isRecalculating, setIsRecalculating] = useState(false)
+
   // Match management
   const [matches, setMatches] = useState<MatchResponse[]>([])
   const [loadingMatches, setLoadingMatches] = useState(false)
@@ -257,6 +259,20 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to update name')
     }
     setIsRenaming(false)
+  }
+
+  async function handleRecalculateStats() {
+    if (!selectedSeasonId) return
+    setIsRecalculating(true)
+    const res = await fetch(`/api/admin/recalculate-stats?seasonId=${selectedSeasonId}`, { method: 'POST' })
+    const data = await res.json()
+    if (res.ok) {
+      toast.success(`Stats fixed — ${data.duplicatesRemoved} duplicate rows removed, ${data.playersFixed} players updated`)
+      fetchUsers(selectedSeasonId)
+    } else {
+      toast.error(data.error ?? 'Failed to recalculate stats')
+    }
+    setIsRecalculating(false)
   }
 
   async function handleDeleteMatch(matchId: string) {
@@ -652,7 +668,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       {/* Match Management */}
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="flex items-center gap-2">
                 <ClipboardEdit className="h-5 w-5" />
@@ -662,6 +678,16 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                 Delete a confirmed match (reverses all RR changes) or edit its score (recalculates RR).
               </CardDescription>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRecalculateStats}
+              disabled={isRecalculating || !selectedSeasonId}
+              className="shrink-0"
+            >
+              {isRecalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Recalculate Stats
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

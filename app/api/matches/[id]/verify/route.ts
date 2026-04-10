@@ -85,6 +85,16 @@ export async function PATCH(
       .returning({ id: matches.id })
     if (!claimed) return // another request already confirmed this match
 
+    // Second guard: if rr_changes already exist for this match, stats were already
+    // applied (e.g. a concurrent request claimed the match in a race before READ COMMITTED
+    // re-evaluation). Bail out to prevent double-incrementing gamesPlayed.
+    const [alreadyProcessed] = await tx
+      .select({ id: rrChanges.id })
+      .from(rrChanges)
+      .where(eq(rrChanges.matchId, id))
+      .limit(1)
+    if (alreadyProcessed) return
+
     // Get or create season_stats for each player.
     // New players (no prior seasons) start at 0 RR.
     // Players joining a new season mid-season start at their decayed RR from
