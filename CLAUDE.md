@@ -173,6 +173,13 @@ NEXT_PUBLIC_APP_URL=
 - Navbar badge for pending verifications
 - Supabase pg_cron job to expire matches after 7 days
 
+### Part 11 — Email via Resend ✅
+- `resend` package installed
+- `lib/resend.ts` — Resend client + `sendPasswordResetEmail` HTML template
+- `app/api/auth/forgot-password/route.ts` — generates recovery link via Supabase admin API, delivers via Resend (no email enumeration)
+- Forgot-password page calls our API route instead of `supabase.auth.resetPasswordForEmail()`
+- Signup OTP emails: configure Supabase custom SMTP → `smtp.resend.com:465`, username `resend`, password = `RESEND_API_KEY`
+
 ### Part 10 — PWA & Deployment Polish ✅
 - Configured `@ducanh2912/next-pwa` with full runtime caching (NetworkFirst for API/pages, CacheFirst for static assets/images, StaleWhileRevalidate for `_next/image`)
 - `app/~offline/page.tsx` — offline fallback page served by the service worker

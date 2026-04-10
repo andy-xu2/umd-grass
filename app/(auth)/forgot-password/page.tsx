@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Trophy, ArrowLeft, Loader2, MailCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase-browser'
 import { toast } from 'sonner'
 
 export default function ForgotPasswordPage() {
@@ -19,13 +18,14 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setIsLoading(true)
 
-    const supabase = createClient()
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+    const res = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
     })
 
-    if (error) {
-      toast.error(error.message)
+    if (!res.ok) {
+      toast.error('Something went wrong. Please try again.')
       setIsLoading(false)
       return
     }
