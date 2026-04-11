@@ -5,15 +5,76 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { VerificationCard } from '@/components/verification-card'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
-import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle } from 'lucide-react'
+import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle, ChevronsUpDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
+
+function PlayerCombobox({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+}: {
+  value: string
+  onChange: (id: string) => void
+  options: UserWithStats[]
+  placeholder: string
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find(u => u.id === value)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          disabled={disabled}
+          className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground')}
+        >
+          {selected ? selected.name : placeholder}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search players..." />
+          <CommandList>
+            <CommandEmpty>No players found.</CommandEmpty>
+            <CommandGroup>
+              {options.map(u => (
+                <CommandItem
+                  key={u.id}
+                  value={u.name}
+                  onSelect={() => {
+                    onChange(u.id)
+                    setOpen(false)
+                  }}
+                >
+                  <Check className={cn('mr-2 h-4 w-4', value === u.id ? 'opacity-100' : 'opacity-0')} />
+                  <span className="flex-1">{u.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {!u.stats || u.stats.gamesPlayed === 0 ? 'Unranked' : `${u.stats.rr} RR`}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 const emptySet = (): SetScore => ({ team1: 0, team2: 0 })
 
@@ -54,7 +115,9 @@ export default function SubmitMatchPage() {
     loadData().finally(() => setLoadingData(false))
   }, [loadData])
 
-  const otherUsers = allUsers.filter(u => u.id !== currentUserId)
+  const otherUsers = allUsers
+    .filter(u => u.id !== currentUserId)
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   const verifiableMatches = myMatches.filter(
     m =>
@@ -130,11 +193,6 @@ export default function SubmitMatchPage() {
 
   const handleConfirm = (matchId: string) => handleVerify(matchId, 'confirm')
   const handleReject = (matchId: string) => handleVerify(matchId, 'reject')
-
-  function displayRr(u: UserWithStats) {
-    if (!u.stats || u.stats.gamesPlayed === 0) return 'Unranked'
-    return `${u.stats.rr} RR`
-  }
 
   // Season state
   const now = new Date()
@@ -254,20 +312,13 @@ export default function SubmitMatchPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Select Teammate</Label>
-                      <Select value={teammate} onValueChange={setTeammate} disabled={loadingData}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Choose your teammate" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {otherUsers
-                            .filter(u => u.id !== opponent1 && u.id !== opponent2)
-                            .map(u => (
-                              <SelectItem key={u.id} value={u.id}>
-                                {u.name} ({displayRr(u)})
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
+                      <PlayerCombobox
+                        value={teammate}
+                        onChange={setTeammate}
+                        options={otherUsers.filter(u => u.id !== opponent1 && u.id !== opponent2)}
+                        placeholder="Choose your teammate"
+                        disabled={loadingData}
+                      />
                     </div>
                   </div>
 
@@ -277,37 +328,23 @@ export default function SubmitMatchPage() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label>Opponent 1</Label>
-                        <Select value={opponent1} onValueChange={setOpponent1} disabled={loadingData}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select opponent" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {otherUsers
-                              .filter(u => u.id !== teammate && u.id !== opponent2)
-                              .map(u => (
-                                <SelectItem key={u.id} value={u.id}>
-                                  {u.name} ({displayRr(u)})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                        <PlayerCombobox
+                          value={opponent1}
+                          onChange={setOpponent1}
+                          options={otherUsers.filter(u => u.id !== teammate && u.id !== opponent2)}
+                          placeholder="Select opponent"
+                          disabled={loadingData}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Opponent 2</Label>
-                        <Select value={opponent2} onValueChange={setOpponent2} disabled={loadingData}>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select opponent" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {otherUsers
-                              .filter(u => u.id !== teammate && u.id !== opponent1)
-                              .map(u => (
-                                <SelectItem key={u.id} value={u.id}>
-                                  {u.name} ({displayRr(u)})
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                        <PlayerCombobox
+                          value={opponent2}
+                          onChange={setOpponent2}
+                          options={otherUsers.filter(u => u.id !== teammate && u.id !== opponent1)}
+                          placeholder="Select opponent"
+                          disabled={loadingData}
+                        />
                       </div>
                     </div>
                   </div>

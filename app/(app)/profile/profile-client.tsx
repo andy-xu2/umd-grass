@@ -156,6 +156,7 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   const unranked = isUnranked(gamesPlayed)
   const tier = getSkillTier(rr)
   const winRate = getWinRate(wins, gamesPlayed)
+  const lifetimeUnranked = allTime.totalGames < PLACEMENT_GAMES
   const allTimeTier = getSkillTier(allTime.peakRR)
 
   return (
@@ -379,9 +380,12 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
                   <Star className="h-6 w-6 text-yellow-500" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{allTime.peakRR}</p>
+                  <p className="text-2xl font-bold">{lifetimeUnranked ? '—' : allTime.peakRR}</p>
                   <p className="text-xs text-muted-foreground">Peak RR</p>
-                  <p className={cn('text-xs font-medium', allTimeTier.color)}>{allTimeTier.name}</p>
+                  {lifetimeUnranked
+                    ? <p className="text-xs text-muted-foreground">Complete placements first</p>
+                    : <p className={cn('text-xs font-medium', allTimeTier.color)}>{allTimeTier.name}</p>
+                  }
                 </div>
               </CardContent>
             </Card>
