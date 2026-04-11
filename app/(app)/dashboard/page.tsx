@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
+import { users, seasons, seasonStats, rrChanges, matches } from '@/drizzle/schema'
 import { eq, and, desc, gte, inArray } from 'drizzle-orm'
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
@@ -11,11 +11,47 @@ import { buildMatchesForUser } from '@/app/api/matches/route'
 import { PLACEMENT_GAMES } from '@/lib/elo'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Clock, Trophy, Loader2 } from 'lucide-react'
+import { Clock, Trophy, Loader2, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { LeaderboardEntry } from '@/lib/types'
 
 // ─── Async streaming sections ─────────────────────────────────────────────────
+
+async function VerifyNotice({ userId }: { userId: string }) {
+  const pending = await db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, 'PENDING'),
+        eq(matches.team2Player1Id, userId),
+      ),
+    )
+  const pending2 = await db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.status, 'PENDING'),
+        eq(matches.team2Player2Id, userId),
+      ),
+    )
+  const count = pending.length + pending2.length
+  if (count === 0) return null
+
+  return (
+    <Link href="/submit-match?tab=verify">
+      <div className="flex items-center gap-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300 hover:bg-yellow-500/20 transition-colors">
+        <Bell className="h-4 w-4 shrink-0" />
+        <span>
+          You have <span className="font-semibold">{count} match{count !== 1 ? 'es' : ''}</span> waiting for your verification.
+        </span>
+        <span className="ml-auto font-medium underline underline-offset-2">Verify now</span>
+      </div>
+    </Link>
+  )
+}
+
 
 async function DashboardLeaderboard({ userId }: { userId: string }) {
   const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
@@ -209,6 +245,10 @@ export default async function DashboardPage() {
           {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
         </p>
       </div>
+
+      <Suspense fallback={null}>
+        <VerifyNotice userId={user.id} />
+      </Suspense>
 
       {/* Two-column layout — each section streams in independently */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
