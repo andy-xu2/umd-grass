@@ -15,14 +15,17 @@ export const MIN_WIN_GAIN = 5
 export const PLACEMENT_GAMES = 5
 
 /**
- * K factors during a player's INITIAL 5 career placement games.
+ * RR gain multipliers applied during placement games.
  *
- * Starting from 0 RR, 5 wins against elite opposition should reach the 1500 cap:
- *   5 × ~300 ≈ 1500  ✓
- * Losses use double the normal K — placement is high-stakes in both directions.
+ * Initial placement (first 5 career games ever):
+ *   gain × 15 — fast climb from 0, expected clamped to 0.5 (see calculateRrChange),
+ *   losses yield 0 RR. 5 clean 1-set wins at equal opponents: 5 × (40 × 0.5 × 15) = 1500 (cap).
+ *
+ * Seasonal placement (first 5 games of a new season, after initial is done):
+ *   gain × 3 — quicker climb back after season decay, losses yield 0 RR, no cap.
  */
-export const PLACEMENT_WIN_K = 300
-export const PLACEMENT_LOSS_K = K * 2 // 80 — double the normal K
+export const LIFETIME_PLACEMENT_MULTIPLIER = 13
+export const SEASONAL_PLACEMENT_MULTIPLIER = 3
 
 /**
  * Maximum RR a player can reach during their INITIAL career placement games.
@@ -32,15 +35,11 @@ export const PLACEMENT_LOSS_K = K * 2 // 80 — double the normal K
 export const PLACEMENT_RR_CAP = 1500
 
 /**
- * K factors for the FIRST 5 GAMES of each new season (seasonal placement).
- * Applies only after a player's initial 5 career games are done.
- *
- * Smaller than PLACEMENT_WIN_K so the season reset isn't trivially reversed,
- * but large enough that skilled players climb back faster than normal.
- * No RR cap — seasonal placement can push players above 1500.
+ * ELO scale factor. Controls how steeply expected score diverges with RR difference.
+ * Higher values = gentler curve = less harsh gains/losses for mismatched opponents.
+ * At 400 RR above opp avg: win ≈ +15, loss ≈ -25.
  */
-export const SEASONAL_PLACEMENT_WIN_K = 100
-export const SEASONAL_PLACEMENT_LOSS_K = K // 40 — same as normal, no extra loss penalty
+export const ELO_SCALE = 1800
 
 /**
  * Expected score for a player against the average of two opponents.
@@ -48,7 +47,7 @@ export const SEASONAL_PLACEMENT_LOSS_K = K // 40 — same as normal, no extra lo
  */
 export function expectedScore(playerRR: number, oppRR1: number, oppRR2: number): number {
   const opponentAvg = (oppRR1 + oppRR2) / 2
-  return 1 / (1 + Math.pow(10, (opponentAvg - playerRR) / 400))
+  return 1 / (1 + Math.pow(10, (opponentAvg - playerRR) / ELO_SCALE))
 }
 
 /**
@@ -61,7 +60,7 @@ export function expectedScore(playerRR: number, oppRR1: number, oppRR2: number):
  * combined strength, not the star player's solo rating.
  */
 export function expectedScoreTeam(teamAvg: number, oppAvg: number): number {
-  return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / 400))
+  return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / ELO_SCALE))
 }
 
 /**
@@ -132,8 +131,14 @@ export function gainSoftCapMultiplier(rr: number): number {
  * @param playerSetsWon - Sets won by this player's team
  * @param totalSets     - Total sets played in the match
  * @param pointDiff     - (optional) |team1Points − team2Points| across all sets
- * @param kOverride     - (optional) override the base K factor (e.g. placement games)
- * @returns               Signed integer RR delta (may be negative even on a match win)
+ * @param kOverride          - (optional) override the base K factor (e.g. placement games)
+ * @param isInitialPlacement - (optional) true during a player's first 5 career games.
+ *                             Clamps expected to 0.5 when the player is the favourite
+ *                             (prevents negative deltas from being higher-rated), and
+ *                             floors the result at 0 (no RR loss during placement).
+ * @returns                    Signed integer RR delta (may be negative on a match win
+ *                             when the player heavily underperformed expectations, unless
+ *                             isInitialPlacement is true).
  */
 export function calculateRrChange(
   playerRR: number,
@@ -144,6 +149,7 @@ export function calculateRrChange(
   totalSets: number,
   pointDiff?: number,
   kOverride?: number,
+  isInitialPlacement?: boolean,
 ): number {
   const effectiveK = kOverride ?? K
   const actual = playerSetsWon / totalSets
@@ -168,6 +174,14 @@ export function calculateRrChange(
     expected = expectedScore(playerRR, oppRR1, oppRR2)
   }
 
+  // During initial placement: if the player is the "favourite" (expected > 0.5),
+  // treat the match as even-odds. This prevents the set-fraction system from
+  // issuing negative deltas when a new player beats a lower-RR opponent 1-0
+  // but "should have" won by more. Unranked vs unranked is already 0.5 (same RR).
+  if (isInitialPlacement && expected > 0.5) {
+    expected = 0.5
+  }
+
   let base = effectiveK * (actual - expected)
 
   // Soft gain cap: reduce gains (not losses) as RR approaches 3000+.
@@ -177,6 +191,11 @@ export function calculateRrChange(
   }
 
   const result = Math.round(base * pointDiffMultiplier(pointDiff))
+
+  // During initial placement: no RR loss. New players cannot be punished for losing.
+  if (isInitialPlacement && result < 0) {
+    return 0
+  }
 
   // Minimum gain floor: if the ELO math expected a positive gain AND the player
   // won the majority of sets, ensure they get at least MIN_WIN_GAIN. This only

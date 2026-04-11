@@ -45,7 +45,7 @@ opponent_avg_rr = (opponentRR1 + opponentRR2) / 2
 | Platinum | 1500–1999 |
 | Diamond | 2000+ |
 
-New player starting RR: **800** (hidden until 5 games played)
+New player starting RR: **0**
 
 ## Season System
 - Seasons are annual, admin-triggered (no automatic reset)

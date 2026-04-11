@@ -14,12 +14,11 @@ import { eq, and, ne, desc } from 'drizzle-orm'
 import {
   calculateRrChange,
   applySeasonDecay,
+  K,
   PLACEMENT_GAMES,
-  PLACEMENT_WIN_K,
-  PLACEMENT_LOSS_K,
   PLACEMENT_RR_CAP,
-  SEASONAL_PLACEMENT_WIN_K,
-  SEASONAL_PLACEMENT_LOSS_K,
+  LIFETIME_PLACEMENT_MULTIPLIER,
+  SEASONAL_PLACEMENT_MULTIPLIER,
 } from '@/lib/elo'
 
 export async function PATCH(
@@ -156,18 +155,18 @@ export async function PATCH(
       playerIds.map(getLifetimeGames),
     )
 
-    // Placement K selection:
-    //   Initial placement (first 5 career games ever): large K — fast rise from 0, capped at 1500.
-    //   Seasonal placement (first 5 games of a new season, after initial is done): moderate K — no cap.
-    //   Normal: undefined (uses default K).
-    function placementK(lifetimeGames: number, seasonGamesPlayed: number, won: boolean): number | undefined {
+    // Returns kOverride and flags for a single player.
+    //   Initial placement (first 5 career games): 15× gain, expected clamped to 0.5, no losses.
+    //   Seasonal placement (first 5 games of a new season): 3× gain, no losses.
+    //   Normal: no override.
+    function getPlacementInfo(lifetimeGames: number, seasonGamesPlayed: number) {
       if (lifetimeGames < PLACEMENT_GAMES) {
-        return won ? PLACEMENT_WIN_K : PLACEMENT_LOSS_K
+        return { kOverride: K * LIFETIME_PLACEMENT_MULTIPLIER, isInitialPlacement: true, noLoss: true }
       }
       if (seasonGamesPlayed < PLACEMENT_GAMES) {
-        return won ? SEASONAL_PLACEMENT_WIN_K : SEASONAL_PLACEMENT_LOSS_K
+        return { kOverride: K * SEASONAL_PLACEMENT_MULTIPLIER, isInitialPlacement: false, noLoss: true }
       }
-      return undefined
+      return { kOverride: undefined, isInitialPlacement: false, noLoss: false }
     }
 
     const team1Won = match.team1Sets > match.team2Sets
@@ -182,13 +181,18 @@ export async function PATCH(
       pointDiff = Math.abs(team1Total - team2Total)
     }
 
-    // Each player's delta uses their team's sets won as the "actual" score.
-    // This means heavy favourites who barely win 2-1 get penalised (negative delta),
-    // while the underdog who took that set gets rewarded even in defeat.
-    const t1p1Delta = calculateRrChange(t1p1Stats.rr, t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p1Lifetime, t1p1Stats.gamesPlayed, team1Won))
-    const t1p2Delta = calculateRrChange(t1p2Stats.rr, t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, placementK(t1p2Lifetime, t1p2Stats.gamesPlayed, team1Won))
-    const t2p1Delta = calculateRrChange(t2p1Stats.rr, t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p1Lifetime, t2p1Stats.gamesPlayed, !team1Won))
-    const t2p2Delta = calculateRrChange(t2p2Stats.rr, t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, placementK(t2p2Lifetime, t2p2Stats.gamesPlayed, !team1Won))
+    const t1p1Info = getPlacementInfo(t1p1Lifetime, t1p1Stats.gamesPlayed)
+    const t1p2Info = getPlacementInfo(t1p2Lifetime, t1p2Stats.gamesPlayed)
+    const t2p1Info = getPlacementInfo(t2p1Lifetime, t2p1Stats.gamesPlayed)
+    const t2p2Info = getPlacementInfo(t2p2Lifetime, t2p2Stats.gamesPlayed)
+
+    const noLoss = (delta: number, info: ReturnType<typeof getPlacementInfo>) =>
+      info.noLoss ? Math.max(0, delta) : delta
+
+    const t1p1Delta = noLoss(calculateRrChange(t1p1Stats.rr, t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, t1p1Info.kOverride, t1p1Info.isInitialPlacement), t1p1Info)
+    const t1p2Delta = noLoss(calculateRrChange(t1p2Stats.rr, t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, match.team1Sets, totalSets, pointDiff, t1p2Info.kOverride, t1p2Info.isInitialPlacement), t1p2Info)
+    const t2p1Delta = noLoss(calculateRrChange(t2p1Stats.rr, t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, t2p1Info.kOverride, t2p1Info.isInitialPlacement), t2p1Info)
+    const t2p2Delta = noLoss(calculateRrChange(t2p2Stats.rr, t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, match.team2Sets, totalSets, pointDiff, t2p2Info.kOverride, t2p2Info.isInitialPlacement), t2p2Info)
 
     // Apply stats + record rr_changes for each player
     const updates: Array<{

@@ -5,11 +5,11 @@ import {
   pointDiffMultiplier,
   applySeasonDecay,
   gainSoftCapMultiplier,
-  PLACEMENT_WIN_K,
-  PLACEMENT_LOSS_K,
-  SEASONAL_PLACEMENT_WIN_K,
-  SEASONAL_PLACEMENT_LOSS_K,
+  LIFETIME_PLACEMENT_MULTIPLIER,
+  SEASONAL_PLACEMENT_MULTIPLIER,
+  PLACEMENT_RR_CAP,
   MIN_WIN_GAIN,
+  ELO_SCALE,
   K,
 } from './elo'
 
@@ -119,14 +119,16 @@ describe('calculateRrChange — RR gap effects', () => {
     expect(calculateRrChange(800, 800, 1200, 1200, 2, 2)).toBeGreaterThan(sweep(800))
   })
 
-  it('max gain approaches K on a clean upset sweep', () => {
+  it('max gain is large (but < K with scale=1800) on a clean upset sweep', () => {
     const gain = calculateRrChange(100, 100, 2000, 2000, 2, 2)
-    expect(gain).toBeCloseTo(K, 0)
+    expect(gain).toBeGreaterThan(35)
+    expect(gain).toBeLessThanOrEqual(K)
   })
 
-  it('max loss approaches −K on a catastrophic upset loss', () => {
+  it('max loss is large (but < K with scale=1800) on a catastrophic upset loss', () => {
     const loss = calculateRrChange(2000, 2000, 100, 100, 0, 2)
-    expect(loss).toBeCloseTo(-K, 0)
+    expect(loss).toBeLessThan(-35)
+    expect(loss).toBeGreaterThanOrEqual(-K)
   })
 })
 
@@ -159,14 +161,16 @@ describe('calculateRrChange — heavy mismatch set-fraction behaviour', () => {
     expect(Math.abs(favDelta + undDelta)).toBeLessThanOrEqual(2)
   })
 
-  it('upset WIN still gives near-K gain for the underdog', () => {
+  it('upset WIN gives large gain for the underdog', () => {
     const gain = calculateRrChange(1000, 1000, 3000, 3000, 2, 2) // 1000 sweeps 3000
-    expect(gain).toBeCloseTo(K, 0)
+    expect(gain).toBeGreaterThan(35)
+    expect(gain).toBeLessThanOrEqual(K)
   })
 
-  it('upset WIN still costs the favourite near -K', () => {
+  it('upset WIN costs the favourite large RR', () => {
     const loss = calculateRrChange(3000, 3000, 1000, 1000, 0, 2) // 3000 gets swept by 1000
-    expect(loss).toBeCloseTo(-K, 0)
+    expect(loss).toBeLessThan(-35)
+    expect(loss).toBeGreaterThanOrEqual(-K)
   })
 })
 
@@ -190,52 +194,76 @@ describe('calculateRrChange — pointDiff interaction', () => {
   })
 })
 
-// ─── calculateRrChange — kOverride (placement) ───────────────────────────────
+// ─── calculateRrChange — kOverride (placement multipliers) ───────────────────
 
-describe('calculateRrChange — kOverride (placement games)', () => {
-  it('PLACEMENT_LOSS_K is exactly 2× normal K', () => {
-    expect(PLACEMENT_LOSS_K).toBe(K * 2)
+describe('calculateRrChange — placement multipliers', () => {
+  it('LIFETIME_PLACEMENT_MULTIPLIER is 13', () => {
+    expect(LIFETIME_PLACEMENT_MULTIPLIER).toBe(13)
   })
 
-  it('PLACEMENT_WIN_K is greater than PLACEMENT_LOSS_K', () => {
-    expect(PLACEMENT_WIN_K).toBeGreaterThan(PLACEMENT_LOSS_K)
+  it('SEASONAL_PLACEMENT_MULTIPLIER is 3', () => {
+    expect(SEASONAL_PLACEMENT_MULTIPLIER).toBe(3)
   })
 
-  it('SEASONAL_PLACEMENT_WIN_K is between K and PLACEMENT_WIN_K', () => {
-    expect(SEASONAL_PLACEMENT_WIN_K).toBeGreaterThan(K)
-    expect(SEASONAL_PLACEMENT_WIN_K).toBeLessThan(PLACEMENT_WIN_K)
+  it('SEASONAL_PLACEMENT_MULTIPLIER < LIFETIME_PLACEMENT_MULTIPLIER', () => {
+    expect(SEASONAL_PLACEMENT_MULTIPLIER).toBeLessThan(LIFETIME_PLACEMENT_MULTIPLIER)
   })
 
-  it('SEASONAL_PLACEMENT_LOSS_K equals normal K', () => {
-    expect(SEASONAL_PLACEMENT_LOSS_K).toBe(K)
+  it('lifetime placement gain scales 15× vs normal', () => {
+    const normal    = sweep(800)
+    const placement = calculateRrChange(800, 800, 800, 800, 2, 2, undefined, K * LIFETIME_PLACEMENT_MULTIPLIER)
+    expect(placement / normal).toBeCloseTo(LIFETIME_PLACEMENT_MULTIPLIER, 0)
   })
 
-  it('sweep gain scales proportionally with kOverride', () => {
-    const normal    = sweep(800) // K=40
-    const placement = calculateRrChange(800, 800, 800, 800, 2, 2, undefined, PLACEMENT_WIN_K)
-    expect(placement / normal).toBeCloseTo(PLACEMENT_WIN_K / K, 0)
+  it('seasonal placement gain scales 3× vs normal', () => {
+    const normal    = sweep(800)
+    const placement = calculateRrChange(800, 800, 800, 800, 2, 2, undefined, K * SEASONAL_PLACEMENT_MULTIPLIER)
+    expect(placement / normal).toBeCloseTo(SEASONAL_PLACEMENT_MULTIPLIER, 0)
   })
+})
 
-  it('sweep loss scales proportionally with kOverride', () => {
-    const normal    = sweepLoss(800)
-    const placement = calculateRrChange(800, 800, 800, 800, 0, 2, undefined, PLACEMENT_LOSS_K)
-    expect(placement / normal).toBeCloseTo(PLACEMENT_LOSS_K / K, 0)
-  })
+// ─── calculateRrChange — isInitialPlacement ──────────────────────────────────
 
-  it('max gain with PLACEMENT_WIN_K is bounded by PLACEMENT_WIN_K', () => {
-    const gain = calculateRrChange(100, 100, 2000, 2000, 2, 2, undefined, PLACEMENT_WIN_K)
-    expect(gain).toBeLessThanOrEqual(PLACEMENT_WIN_K)
-    expect(gain).toBeGreaterThan(K)
-  })
+describe('calculateRrChange — isInitialPlacement', () => {
+  const lifetimeK = K * LIFETIME_PLACEMENT_MULTIPLIER // 600
 
-  it('5 wins from 0 RR against elite opponents reaches ~1500 with PLACEMENT_WIN_K', () => {
+  it('5 clean 1-set wins from 0 RR at equal opponents reaches ~1300 RR', () => {
     let rr = 0
     for (let i = 0; i < 5; i++) {
-      // Each game: player at current rr, teammate at 0 too (worst case), vs 2300+2300
-      const delta = calculateRrChange(rr, rr, 2300, 2300, 2, 2, undefined, PLACEMENT_WIN_K)
-      rr = Math.min(1500, rr + delta)
+      const delta = calculateRrChange(rr, rr, rr, rr, 1, 1, undefined, lifetimeK, true)
+      rr = Math.min(PLACEMENT_RR_CAP, rr + delta)
     }
-    expect(rr).toBeGreaterThanOrEqual(1499) // ±1 for integer rounding per game
+    expect(rr).toBeGreaterThanOrEqual(1200)
+    expect(rr).toBeLessThanOrEqual(PLACEMENT_RR_CAP)
+  })
+
+  it('loss during placement yields 0 RR change', () => {
+    const delta = calculateRrChange(0, 0, 800, 800, 0, 1, undefined, lifetimeK, true)
+    expect(delta).toBe(0)
+  })
+
+  it('win against higher-RR opponent gains more than equal-RR win (no clamp, bigger E gap)', () => {
+    const vsEqual   = calculateRrChange(0, 0, 0, 0, 1, 1, undefined, lifetimeK, true)
+    const vsStronger = calculateRrChange(0, 0, 1500, 1500, 1, 1, undefined, lifetimeK, true)
+    expect(vsStronger).toBeGreaterThan(vsEqual)
+  })
+
+  it('win against lower-RR opponent clamps expected to 0.5, giving full K×0.5 gain', () => {
+    const withoutPlacement = calculateRrChange(1200, 1200, 200, 200, 1, 1, undefined, lifetimeK, false)
+    const withPlacement    = calculateRrChange(1200, 1200, 200, 200, 1, 1, undefined, lifetimeK, true)
+    expect(withPlacement).toBeGreaterThan(withoutPlacement)
+    expect(withPlacement).toBe(Math.round(lifetimeK * 0.5))
+  })
+
+  it('unranked vs unranked (both 0 RR) gain = lifetimeK × 0.5', () => {
+    const delta = calculateRrChange(0, 0, 0, 0, 1, 1, undefined, lifetimeK, true)
+    expect(delta).toBe(Math.round(lifetimeK * 0.5))
+  })
+
+  it('isInitialPlacement=false does not clamp (reduced but still positive gain as favourite)', () => {
+    const withoutPlacement = calculateRrChange(1200, 1200, 200, 200, 1, 1, undefined, lifetimeK, false)
+    expect(withoutPlacement).toBeLessThan(Math.round(lifetimeK * 0.5))
+    expect(withoutPlacement).toBeGreaterThan(0)
   })
 })
 
@@ -342,14 +370,14 @@ describe('calculateRrChange — mismatched teammate', () => {
   it('high-RR player loss uses team avg, not solo RR', () => {
     // 2500 (high) + 200 (low) vs 700 + 900 (avg 800). Team avg = 1350.
     const delta = calculateRrChange(2500, 200, 700, 900, 0, 2)
-    const teamExpected = 1 / (1 + Math.pow(10, (800 - 1350) / 400)) // ~0.974
+    const teamExpected = 1 / (1 + Math.pow(10, (800 - 1350) / ELO_SCALE))
     expect(delta).toBeCloseTo(Math.round(-K * teamExpected), 0)
   })
 
   it('lower-ranked player loss uses their own RR, not team avg', () => {
     // 200 (low) + 2500 (high) vs 700 + 900 (avg 800). Individual: 200 vs 800.
     const delta = calculateRrChange(200, 2500, 700, 900, 0, 2)
-    const individualExpected = 1 / (1 + Math.pow(10, (800 - 200) / 400)) // ~0.036
+    const individualExpected = 1 / (1 + Math.pow(10, (800 - 200) / ELO_SCALE))
     expect(delta).toBeCloseTo(Math.round(-K * individualExpected), 0)
   })
 
@@ -368,8 +396,8 @@ describe('calculateRrChange — mismatched teammate', () => {
 
   it('placement player (low RR) sweeping 2300+2300 team gains massive RR', () => {
     // 0 RR player (lower) with 800 RR teammate vs 2300+2300. Uses own RR (0 vs 2300).
-    const gain = calculateRrChange(0, 800, 2300, 2300, 2, 2, undefined, PLACEMENT_WIN_K)
-    expect(gain).toBeGreaterThan(250) // near-full PLACEMENT_WIN_K since huge underdog
+    const gain = calculateRrChange(0, 800, 2300, 2300, 2, 2, undefined, K * LIFETIME_PLACEMENT_MULTIPLIER)
+    expect(gain).toBeGreaterThan(400) // near-full lifetime K since huge underdog
   })
 })
 
