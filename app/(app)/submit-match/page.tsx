@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import { VerificationCard } from '@/components/verification-card'
 import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
-import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle, ChevronsUpDown, Check } from 'lucide-react'
+import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle, ChevronsUpDown, Check, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { isUnranked } from '@/lib/mock-data'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
@@ -125,6 +126,13 @@ export default function SubmitMatchPage() {
       m.status === 'PENDING' &&
       currentUserId &&
       (m.team2Player1.id === currentUserId || m.team2Player2.id === currentUserId),
+  )
+
+  const awaitingMatches = myMatches.filter(
+    m =>
+      m.status === 'PENDING' &&
+      currentUserId &&
+      (m.team1Player1.id === currentUserId || m.team1Player2.id === currentUserId),
   )
 
   // Derived scoring state
@@ -246,6 +254,13 @@ export default function SubmitMatchPage() {
           >
             <Clock className="h-4 w-4" />
             Verify ({verifiableMatches.length})
+          </TabsTrigger>
+          <TabsTrigger
+            value="awaiting"
+            className="gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+          >
+            <Hourglass className="h-4 w-4" />
+            Pending Confirmation ({awaitingMatches.length})
           </TabsTrigger>
         </TabsList>
 
@@ -545,6 +560,107 @@ export default function SubmitMatchPage() {
                   <h3 className="mt-4 text-lg font-semibold">All Caught Up!</h3>
                   <p className="mt-1 text-center text-sm text-muted-foreground">
                     No pending matches to verify.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="awaiting">
+          <div className="space-y-4">
+            {loadingData ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : awaitingMatches.length > 0 ? (
+              awaitingMatches.map(match => {
+                const daysLeft = Math.ceil(
+                  (new Date(match.expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+                )
+                return (
+                  <Card key={match.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="secondary" className="gap-1">
+                          <Hourglass className="h-3 w-3" />
+                          Awaiting Confirmation
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(match.submittedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 flex items-center justify-between gap-4">
+                        {/* Team 1 (you) */}
+                        <div className="flex flex-1 flex-col items-center gap-2 rounded-lg bg-primary/10 p-3">
+                          <div className="flex -space-x-2">
+                            {[match.team1Player1, match.team1Player2].map(p => (
+                              <Avatar key={p.id} className="h-8 w-8 border-2 border-background">
+                                <AvatarFallback className="bg-secondary text-xs">
+                                  {getInitials(p.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs">{match.team1Player1.name}</p>
+                            <p className="text-xs">{match.team1Player2.name}</p>
+                          </div>
+                        </div>
+
+                        {/* Score */}
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <span className="text-lg font-bold">{match.team1Sets}</span>
+                            <span className="text-xs text-muted-foreground">–</span>
+                            <span className="text-lg font-bold">{match.team2Sets}</span>
+                          </div>
+                          {match.setScores && match.setScores.length > 0 && (
+                            <div className="flex flex-col items-center gap-0.5">
+                              {match.setScores.map((s, i) => (
+                                <span key={i} className="font-mono text-xs text-muted-foreground">
+                                  {s.team1}–{s.team2}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Team 2 (opponents) */}
+                        <div className="flex flex-1 flex-col items-center gap-2 rounded-lg bg-secondary/30 p-3">
+                          <div className="flex -space-x-2">
+                            {[match.team2Player1, match.team2Player2].map(p => (
+                              <Avatar key={p.id} className="h-8 w-8 border-2 border-background">
+                                <AvatarFallback className="bg-secondary text-xs">
+                                  {getInitials(p.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            ))}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs">{match.team2Player1.name}</p>
+                            <p className="text-xs">{match.team2Player2.name}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="mt-3 text-center text-xs text-muted-foreground">
+                        Expires in {daysLeft} day{daysLeft !== 1 ? 's' : ''} if not verified
+                      </p>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              <Card>
+                <CardContent className="flex flex-col items-center py-12">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+                    <Hourglass className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold">No Pending Matches</h3>
+                  <p className="mt-1 text-center text-sm text-muted-foreground">
+                    Matches you submit will appear here until the other team verifies them.
                   </p>
                 </CardContent>
               </Card>
