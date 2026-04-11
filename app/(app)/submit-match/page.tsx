@@ -14,6 +14,7 @@ import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle, ChevronsUpDown, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isUnranked } from '@/lib/mock-data'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
 
 function PlayerCombobox({
@@ -64,7 +65,7 @@ function PlayerCombobox({
                   <Check className={cn('mr-2 h-4 w-4', value === u.id ? 'opacity-100' : 'opacity-0')} />
                   <span className="flex-1">{u.name}</span>
                   <span className="text-xs text-muted-foreground">
-                    {!u.stats || u.stats.gamesPlayed === 0 ? 'Unranked' : `${u.stats.rr} RR`}
+                    {!u.stats || isUnranked(u.stats.gamesPlayed) ? 'Unranked' : `${u.stats.rr} RR`}
                   </span>
                 </CommandItem>
               ))}
