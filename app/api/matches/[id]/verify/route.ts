@@ -20,6 +20,8 @@ import {
   LIFETIME_PLACEMENT_MULTIPLIER,
   SEASONAL_PLACEMENT_MULTIPLIER,
 } from '@/lib/elo'
+import { isAdmin } from '@/lib/utils'
+
 
 export async function PATCH(
   request: Request,
@@ -42,12 +44,19 @@ export async function PATCH(
   if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 })
 
   // Only opposing team (team2) can verify
-  if (match.team2Player1Id !== user.id && match.team2Player2Id !== user.id) {
+  const admin = isAdmin(user.id)
+
+  if (
+    !admin &&
+    match.team2Player1Id !== user.id &&
+    match.team2Player2Id !== user.id
+  ) {
     return NextResponse.json(
       { error: 'Only the opposing team can verify this match' },
       { status: 403 },
     )
   }
+  
 
   if (match.status !== 'PENDING') {
     return NextResponse.json({ error: 'Match is not pending' }, { status: 400 })

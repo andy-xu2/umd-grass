@@ -41,7 +41,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search, UserPen } from 'lucide-react'
+import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
 
 interface Props {
@@ -64,7 +64,10 @@ function ScoreDisplay({ match }: { match: MatchResponse }) {
   return (
     <span className="font-mono text-sm">
       {sets.map((s, i) => (
-        <span key={i}>{i > 0 && ' · '}{s.team1}–{s.team2}</span>
+        <span key={i}>
+          {i > 0 && ' · '}
+          {s.team1}–{s.team2}
+        </span>
       ))}
     </span>
   )
@@ -108,6 +111,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [editScoreMatch, setEditScoreMatch] = useState<MatchResponse | null>(null)
   const [editScoreSets, setEditScoreSets] = useState<SetScore[]>([])
   const [isSavingScore, setIsSavingScore] = useState(false)
+  const [verifyingMatchId, setVerifyingMatchId] = useState<string | null>(null)
 
   const [playerSearch, setPlayerSearch] = useState('')
   const [matchSearch, setMatchSearch] = useState('')
@@ -131,10 +135,24 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     if (!matchSearch.trim()) return sorted
     const q = matchSearch.toLowerCase()
     return sorted.filter(m =>
-      [m.team1Player1.name, m.team1Player2.name, m.team2Player1.name, m.team2Player2.name]
-        .some(name => name.toLowerCase().includes(q))
+      [
+        m.team1Player1.name,
+        m.team1Player2.name,
+        m.team2Player1.name,
+        m.team2Player2.name,
+      ].some(name => name.toLowerCase().includes(q))
     )
   }, [matches, matchSearch])
+
+  const pendingMatches = useMemo(
+    () => filteredMatches.filter(m => m.status === 'PENDING'),
+    [filteredMatches]
+  )
+
+  const confirmedMatches = useMemo(
+    () => filteredMatches.filter(m => m.status === 'CONFIRMED'),
+    [filteredMatches]
+  )
 
   const fetchUsers = useCallback(async (sid: string) => {
     setLoadingUsers(true)
@@ -289,13 +307,37 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     setDeletingMatchId(null)
   }
 
+  async function handleVerify(matchId: string, action: 'confirm' | 'reject') {
+    setVerifyingMatchId(matchId)
+
+    const res = await fetch(`/api/matches/${matchId}/verify`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    })
+
+    if (res.ok) {
+      toast.success(action === 'confirm' ? 'Match confirmed' : 'Match rejected')
+      if (selectedSeasonId) {
+        await Promise.all([fetchMatches(selectedSeasonId), fetchUsers(selectedSeasonId)])
+      }
+    } else {
+      const data = await res.json()
+      toast.error(data.error ?? `Failed to ${action} match`)
+    }
+
+    setVerifyingMatchId(null)
+  }
+
   function openEditScore(match: MatchResponse) {
     setEditScoreMatch(match)
     setEditScoreSets(match.setScores ? [...match.setScores] : [{ team1: 0, team2: 0 }])
   }
 
   function updateSet(idx: number, field: 'team1' | 'team2', value: string) {
-    setEditScoreSets(prev => prev.map((s, i) => i === idx ? { ...s, [field]: parseInt(value) || 0 } : s))
+    setEditScoreSets(prev =>
+      prev.map((s, i) => (i === idx ? { ...s, [field]: parseInt(value) || 0 } : s))
+    )
   }
 
   function addSet() {
@@ -356,18 +398,18 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
           <ShieldAlert className="h-5 w-5 text-destructive" />
         </div>
         <div>
           <h1 className="text-2xl font-bold">Admin Panel</h1>
-          <p className="text-sm text-muted-foreground">Season management, player RR, and match controls</p>
+          <p className="text-sm text-muted-foreground">
+            Season management, player RR, and match controls
+          </p>
         </div>
       </div>
 
-      {/* Create Season */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -375,7 +417,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
             Create New Season
           </CardTitle>
           <CardDescription>
-            Creating a season deactivates the current one and applies a 2-rank decay to all players&apos; RR (–1000, floor 0; capped at 1500 if above 2500).
+            Creating a season deactivates the current one and applies a 2-rank decay to all
+            players&apos; RR (–1000, floor 0; capped at 1500 if above 2500).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -400,7 +443,9 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="season-end">End Date <span className="text-muted-foreground font-normal">(optional)</span></Label>
+              <Label htmlFor="season-end">
+                End Date <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
               <Input
                 id="season-end"
                 type="date"
@@ -410,10 +455,11 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
             </div>
             <div className="flex items-end">
               <Button onClick={handleCreateSeason} disabled={isCreating || !newSeasonName.trim()}>
-                {isCreating
-                  ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  : <Plus className="mr-2 h-4 w-4" />
-                }
+                {isCreating ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
                 Create Season
               </Button>
             </div>
@@ -484,7 +530,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         </CardContent>
       </Card>
 
-      {/* Manage Player RR */}
       <Card>
         <CardHeader>
           <CardTitle>Manage Players</CardTitle>
@@ -551,51 +596,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                         {user.stats ? `${user.stats.wins} / ${user.stats.losses}` : '—'}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Rename player"
-                          onClick={() => { setRenameUser(user); setRenameName(user.name ?? '') }}
-                        >
-                          <UserPen className="h-3.5 w-3.5" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
-                              disabled={deletingUserId === user.id}
-                              title="Delete player"
-                            >
-                              {deletingUserId === user.id
-                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                : <Trash2 className="h-3.5 w-3.5" />
-                              }
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete {user.name}?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will remove <strong>{user.name}</strong> from all leaderboards and
-                                revoke their login. Their past matches will remain but show{' '}
-                                <strong>Deleted User</strong> in place of their name. This cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteUser(user.id, user.name)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
                         <Dialog
                           open={editUser?.id === user.id}
                           onOpenChange={open => {
@@ -652,7 +652,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                             </div>
                           </DialogContent>
                         </Dialog>
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -665,7 +664,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         </CardContent>
       </Card>
 
-      {/* Match Management */}
       <Card>
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
@@ -675,7 +673,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                 Match Management
               </CardTitle>
               <CardDescription className="mt-1">
-                Delete a confirmed match (reverses all RR changes) or edit its score (recalculates RR).
+                Review unverified matches, or delete/edit confirmed matches.
               </CardDescription>
             </div>
             <Button
@@ -699,10 +697,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
             </div>
           ) : matches.length === 0 ? (
             <p className="py-6 text-center text-muted-foreground">
-              No confirmed matches for this season.
+              No matches found for this season.
             </p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-6">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -712,101 +710,200 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                   className="pl-8"
                 />
               </div>
-              <div className="rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Teams</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="w-24 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMatches.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="py-6 text-center text-muted-foreground">
-                        No matches match your search.
-                      </TableCell>
-                    </TableRow>
-                  ) : filteredMatches.map(match => (
-                    <TableRow key={match.id}>
-                      <TableCell>
-                        <div className="space-y-0.5">
-                          <p className="text-sm font-medium">
-                            {match.team1Player1.name} &amp; {match.team1Player2.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            vs {match.team2Player1.name} &amp; {match.team2Player2.name}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <ScoreDisplay match={match} />
-                        <span className="ml-2 text-xs font-semibold">
-                          {match.team1Sets > match.team2Sets
-                            ? <span className="text-green-600">{match.team1Sets}–{match.team2Sets}</span>
-                            : <span className="text-red-500">{match.team1Sets}–{match.team2Sets}</span>
-                          }
-                        </span>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(match.submittedAt)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => openEditScore(match)}
-                            title="Edit score"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                disabled={deletingMatchId === match.id}
-                                title="Delete match"
-                              >
-                                {deletingMatchId === match.id
-                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : <Trash2 className="h-3.5 w-3.5" />
-                                }
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete this match?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  This will permanently delete the match between{' '}
-                                  <strong>{match.team1Player1.name} &amp; {match.team1Player2.name}</strong>{' '}
-                                  vs{' '}
-                                  <strong>{match.team2Player1.name} &amp; {match.team2Player2.name}</strong>{' '}
-                                  and reverse all RR changes for the 4 players.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleDeleteMatch(match.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Unverified Games</h3>
+                  <Badge variant="secondary">{pendingMatches.length}</Badge>
+                </div>
+
+                {pendingMatches.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No pending matches match your search.
+                  </p>
+                ) : (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Teams</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="w-32 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingMatches.map(match => (
+                          <TableRow key={match.id}>
+                            <TableCell>
+                              <div className="space-y-0.5">
+                                <p className="text-sm font-medium">
+                                  {match.team1Player1.name} &amp; {match.team1Player2.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  vs {match.team2Player1.name} &amp; {match.team2Player2.name}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <ScoreDisplay match={match} />
+                              <span className="ml-2 text-xs font-semibold text-muted-foreground">
+                                {match.team1Sets}–{match.team2Sets}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatDate(match.submittedAt)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-green-600 hover:text-green-700"
+                                  title="Confirm match"
+                                  disabled={verifyingMatchId === match.id}
+                                  onClick={() => handleVerify(match.id, 'confirm')}
                                 >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                                  {verifyingMatchId === match.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <Check className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  title="Reject match"
+                                  disabled={verifyingMatchId === match.id}
+                                  onClick={() => handleVerify(match.id, 'reject')}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Confirmed Matches</h3>
+                  <Badge variant="secondary">{confirmedMatches.length}</Badge>
+                </div>
+
+                {confirmedMatches.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No confirmed matches match your search.
+                  </p>
+                ) : (
+                  <div className="rounded-lg border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Teams</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="w-24 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {confirmedMatches.map(match => (
+                          <TableRow key={match.id}>
+                            <TableCell>
+                              <div className="space-y-0.5">
+                                <p className="text-sm font-medium">
+                                  {match.team1Player1.name} &amp; {match.team1Player2.name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  vs {match.team2Player1.name} &amp; {match.team2Player2.name}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <ScoreDisplay match={match} />
+                              <span className="ml-2 text-xs font-semibold">
+                                {match.team1Sets > match.team2Sets ? (
+                                  <span className="text-green-600">
+                                    {match.team1Sets}–{match.team2Sets}
+                                  </span>
+                                ) : (
+                                  <span className="text-red-500">
+                                    {match.team1Sets}–{match.team2Sets}
+                                  </span>
+                                )}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {formatDate(match.submittedAt)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => openEditScore(match)}
+                                  title="Edit score"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                      disabled={deletingMatchId === match.id}
+                                      title="Delete match"
+                                    >
+                                      {deletingMatchId === match.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      )}
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Delete this match?</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        This will permanently delete the match between{' '}
+                                        <strong>
+                                          {match.team1Player1.name} &amp; {match.team1Player2.name}
+                                        </strong>{' '}
+                                        vs{' '}
+                                        <strong>
+                                          {match.team2Player1.name} &amp; {match.team2Player2.name}
+                                        </strong>{' '}
+                                        and reverse all RR changes for the 4 players.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteMatch(match.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -843,7 +940,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         </DialogContent>
       </Dialog>
 
-      {/* Edit Season Dates Dialog */}
       <Dialog open={!!editSeasonDates} onOpenChange={open => !open && setEditSeasonDates(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -872,7 +968,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="edit-end-date">
-                End Date <span className="text-muted-foreground font-normal">(leave blank for open-ended)</span>
+                End Date{' '}
+                <span className="text-muted-foreground font-normal">
+                  (leave blank for open-ended)
+                </span>
               </Label>
               <Input
                 id="edit-end-date"
@@ -894,7 +993,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         </DialogContent>
       </Dialog>
 
-      {/* Edit Score Dialog */}
       <Dialog open={!!editScoreMatch} onOpenChange={open => !open && setEditScoreMatch(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -925,7 +1023,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                     onChange={e => updateSet(i, 'team1', e.target.value)}
                     className="text-center"
                   />
-                  <span className="text-muted-foreground text-sm">–</span>
+                  <span className="text-sm text-muted-foreground">–</span>
                   <Input
                     type="number"
                     min={0}

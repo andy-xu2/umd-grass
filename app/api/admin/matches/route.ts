@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     .innerJoin(t1p2, eq(matches.team1Player2Id, t1p2.id))
     .innerJoin(t2p1, eq(matches.team2Player1Id, t2p1.id))
     .innerJoin(t2p2, eq(matches.team2Player2Id, t2p2.id))
-    .where(and(eq(matches.seasonId, seasonId), eq(matches.status, 'CONFIRMED')))
+    .where(eq(matches.seasonId, seasonId))
     .orderBy(desc(matches.submittedAt))
     .limit(100)
 
