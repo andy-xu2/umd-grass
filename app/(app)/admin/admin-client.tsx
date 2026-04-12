@@ -41,8 +41,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { toast } from 'sonner'
-import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search } from 'lucide-react'
+import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search, Check, X } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
+
 
 interface Props {
   initialSeasons: Season[]
