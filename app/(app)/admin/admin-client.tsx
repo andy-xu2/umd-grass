@@ -103,6 +103,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   const [isRecalculating, setIsRecalculating] = useState(false)
+  const [isRecalculatingRr, setIsRecalculatingRr] = useState(false)
 
   // Match management
   const [matches, setMatches] = useState<MatchResponse[]>([])
@@ -296,6 +297,26 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to recalculate stats')
     }
     setIsRecalculating(false)
+  }
+
+  async function handleRecalculateRr() {
+    if (!selectedSeasonId) return
+    setIsRecalculatingRr(true)
+
+    const res = await fetch(`/api/admin/recalculate-rr?seasonId=${selectedSeasonId}`, {
+      method: 'POST',
+    })
+
+    const data = await res.json()
+
+    if (res.ok) {
+      toast.success('RR recalculated')
+      await Promise.all([fetchUsers(selectedSeasonId), fetchMatches(selectedSeasonId)])
+    } else {
+      toast.error(data.error ?? 'Failed to recalculate RR')
+    }
+
+    setIsRecalculatingRr(false)
   }
 
   async function handleDeleteMatch(matchId: string) {
@@ -699,16 +720,29 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                 Review unverified matches, or delete/edit confirmed matches.
               </CardDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRecalculateStats}
-              disabled={isRecalculating || !selectedSeasonId}
-              className="shrink-0"
-            >
-              {isRecalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Recalculate Stats
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRecalculateStats}
+                disabled={isRecalculating || !selectedSeasonId}
+                className="shrink-0"
+              >
+                {isRecalculating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Recalculate Stats
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRecalculateRr}
+                disabled={isRecalculatingRr || !selectedSeasonId}
+                className="shrink-0"
+              >
+                {isRecalculatingRr ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Recalculate RR
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
