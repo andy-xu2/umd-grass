@@ -155,24 +155,28 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     [filteredMatches]
   )
 
-  const fetchUsers = useCallback(async (sid: string) => {
-    setLoadingUsers(true)
+  const fetchUsers = useCallback(async (sid: string, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoadingUsers(true)
+
     const res = await fetch(`/api/users?seasonId=${sid}`)
     if (res.ok) {
       setUsersForSeason(await res.json())
       loadedSeasonId.current = sid
     }
-    setLoadingUsers(false)
+
+    if (!opts?.silent) setLoadingUsers(false)
   }, [])
 
-  const fetchMatches = useCallback(async (sid: string) => {
-    setLoadingMatches(true)
+  const fetchMatches = useCallback(async (sid: string, opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoadingMatches(true)
+
     const res = await fetch(`/api/admin/matches?seasonId=${sid}`)
     if (res.ok) {
       setMatches(await res.json())
       setMatchesLoaded(sid)
     }
-    setLoadingMatches(false)
+
+    if (!opts?.silent) setLoadingMatches(false)
   }, [])
 
   useEffect(() => {
@@ -319,8 +323,26 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
 
     if (res.ok) {
       toast.success(action === 'confirm' ? 'Match confirmed' : 'Match rejected')
+
+      // Optimistically update the match immediately so the UI moves without flashing
+      setMatches(prev =>
+        prev.map(m =>
+          m.id === matchId
+            ? {
+                ...m,
+                status: action === 'confirm' ? 'CONFIRMED' : 'REJECTED',
+                verifiedAt: action === 'confirm' ? new Date().toISOString() : m.verifiedAt,
+              }
+            : m
+        )
+      )
+
+      // Refresh data in the background without showing skeletons
       if (selectedSeasonId) {
-        await Promise.all([fetchMatches(selectedSeasonId), fetchUsers(selectedSeasonId)])
+        await Promise.all([
+          fetchMatches(selectedSeasonId, { silent: true }),
+          fetchUsers(selectedSeasonId, { silent: true }),
+        ])
       }
     } else {
       const data = await res.json()
@@ -758,6 +780,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">
                                 <Button
+                                  type="button"
                                   size="icon"
                                   variant="ghost"
                                   className="h-8 w-8 text-green-600 hover:text-green-700"
@@ -773,6 +796,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                                 </Button>
 
                                 <Button
+                                  type="button"
                                   size="icon"
                                   variant="ghost"
                                   className="h-8 w-8 text-destructive hover:text-destructive"
