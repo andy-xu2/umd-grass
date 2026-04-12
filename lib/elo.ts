@@ -24,7 +24,7 @@ export const PLACEMENT_GAMES = 5
  * Seasonal placement (first 5 games of a new season, after initial is done):
  *   gain × 3 — quicker climb back after season decay, losses yield 0 RR, no cap.
  */
-export const LIFETIME_PLACEMENT_MULTIPLIER = 8
+export const LIFETIME_PLACEMENT_MULTIPLIER = 13
 export const SEASONAL_PLACEMENT_MULTIPLIER = 3
 
 /**
