@@ -114,6 +114,10 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [editScoreSets, setEditScoreSets] = useState<SetScore[]>([])
   const [isSavingScore, setIsSavingScore] = useState(false)
   const [verifyingMatchId, setVerifyingMatchId] = useState<string | null>(null)
+  const [editPlayedAtMatch, setEditPlayedAtMatch] = useState<MatchResponse | null>(null)
+  const [editPlayedDate, setEditPlayedDate] = useState('')
+  const [editPlayedTime, setEditPlayedTime] = useState('')
+  const [isSavingPlayedAt, setIsSavingPlayedAt] = useState(false)
 
   const [playerSearch, setPlayerSearch] = useState('')
   const [matchSearch, setMatchSearch] = useState('')
@@ -441,6 +445,45 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to update score')
     }
     setIsSavingScore(false)
+  }
+
+  function openEditPlayedAt(match: MatchResponse) {
+    setEditPlayedAtMatch(match)
+
+    const played = new Date(match.playedAt)
+    const localDate = new Date(played.getTime() - played.getTimezoneOffset() * 60000)
+
+    setEditPlayedDate(localDate.toISOString().split('T')[0])
+    setEditPlayedTime(localDate.toTimeString().slice(0, 5))
+  }
+
+  async function handleSavePlayedAt() {
+    if (!editPlayedAtMatch || !editPlayedDate || !editPlayedTime) return
+
+    setIsSavingPlayedAt(true)
+
+    const res = await fetch(`/api/matches/${editPlayedAtMatch.id}/played-at`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playedDate: editPlayedDate,
+        playedTime: editPlayedTime,
+      }),
+    })
+
+    if (res.ok) {
+      toast.success('Played time updated and RR recalculated')
+      setEditPlayedAtMatch(null)
+
+      if (selectedSeasonId) {
+        await Promise.all([fetchMatches(selectedSeasonId), fetchUsers(selectedSeasonId)])
+      }
+    } else {
+      const data = await res.json()
+      toast.error(data.error ?? 'Failed to update played time')
+    }
+
+    setIsSavingPlayedAt(false)
   }
 
   return (
@@ -910,6 +953,15 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8"
+                                  onClick={() => openEditPlayedAt(match)}
+                                  title="Edit played date/time"
+                                >
+                                  <CalendarDays className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
                                   onClick={() => openEditScore(match)}
                                   title="Edit score"
                                 >
@@ -1055,6 +1107,60 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!editPlayedAtMatch} onOpenChange={open => !open && setEditPlayedAtMatch(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit Played Date &amp; Time</DialogTitle>
+            <DialogDescription>
+              {editPlayedAtMatch && (
+                <>
+                  {editPlayedAtMatch.team1Player1.name} &amp; {editPlayedAtMatch.team1Player2.name}
+                  {' vs '}
+                  {editPlayedAtMatch.team2Player1.name} &amp; {editPlayedAtMatch.team2Player2.name}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-played-date">Date Played</Label>
+              <Input
+                id="edit-played-date"
+                type="date"
+                value={editPlayedDate}
+                onChange={e => setEditPlayedDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="edit-played-time">Time Played</Label>
+              <Input
+                id="edit-played-time"
+                type="time"
+                value={editPlayedTime}
+                onChange={e => setEditPlayedTime(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                className="flex-1"
+                onClick={handleSavePlayedAt}
+                disabled={isSavingPlayedAt || !editPlayedDate || !editPlayedTime}
+              >
+                {isSavingPlayedAt && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save &amp; Recalculate RR
+              </Button>
+
+              <Button variant="outline" onClick={() => setEditPlayedAtMatch(null)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       <Dialog open={!!editScoreMatch} onOpenChange={open => !open && setEditScoreMatch(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
