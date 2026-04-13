@@ -131,9 +131,12 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   }, [usersForSeason, playerSearch])
 
   const filteredMatches = useMemo(() => {
-    const sorted = [...matches].sort(
-      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-    )
+    const sorted = [...matches].sort((a, b) => {
+      const aTime = new Date(a.playedAt || a.submittedAt).getTime()
+      const bTime = new Date(b.playedAt || b.submittedAt).getTime()
+      if (bTime !== aTime) return bTime - aTime
+      return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    })
     if (!matchSearch.trim()) return sorted
     const q = matchSearch.toLowerCase()
     return sorted.filter(m =>
@@ -809,7 +812,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                               </span>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(match.submittedAt)}
+                              {formatDate(match.playedAt)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">
@@ -899,7 +902,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                               </span>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(match.submittedAt)}
+                              {formatDate(match.playedAt)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">

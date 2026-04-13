@@ -32,6 +32,7 @@ export interface MatchResponse {
   team2Sets: number
   status: MatchStatus
   submittedAt: string
+  playedAt: string
   expiresAt: string
   verifiedBy: string | null
   verifiedAt: string | null

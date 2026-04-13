@@ -138,13 +138,13 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
   // Matches for the selected season, newest first
   const seasonMatches = allMatches
     .filter(m => m.seasonId === seasonId && m.status === 'CONFIRMED')
-    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+    .sort((a, b) => new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime())
 
   // First PLACEMENT_GAMES confirmed matches career-wide are placement games
   const placementMatchIds = new Set(
     allMatches
       .filter(m => m.status === 'CONFIRMED')
-      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
+      .sort((a, b) => new Date(a.playedAt).getTime() - new Date(b.playedAt).getTime())
       .slice(0, PLACEMENT_GAMES)
       .map(m => m.id),
   )

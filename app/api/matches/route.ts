@@ -41,6 +41,7 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
       team2Sets: matches.team2Sets,
       status: matches.status,
       submittedAt: matches.submittedAt,
+      playedAt: matches.playedAt,
       expiresAt: matches.expiresAt,
       verifiedBy: matches.verifiedBy,
       verifiedAt: matches.verifiedAt,
@@ -58,7 +59,7 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
         eq(matches.team2Player2Id, userId),
       ),
     )
-    .orderBy(desc(matches.submittedAt))
+    .orderBy(desc(matches.playedAt), desc(matches.submittedAt))
 
   if (rows.length === 0) return []
 
@@ -106,6 +107,7 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
     team2Sets: row.team2Sets,
     status: row.status,
     submittedAt: row.submittedAt.toISOString(),
+    playedAt: (row.playedAt ?? row.submittedAt).toISOString(),
     expiresAt: row.expiresAt.toISOString(),
     verifiedBy: row.verifiedBy,
     verifiedAt: row.verifiedAt?.toISOString() ?? null,
@@ -128,15 +130,20 @@ export async function POST(request: Request) {
   if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { teammateId, opponent1Id, opponent2Id, sets } = body as {
+  const { teammateId, opponent1Id, opponent2Id, sets, playedDate, playedTime } = body as {
     teammateId?: string
     opponent1Id?: string
     opponent2Id?: string
     sets?: SetScore[]
+    playedDate?: string
+    playedTime?: string
   }
 
   if (!teammateId || !opponent1Id || !opponent2Id) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+  }
+  if (!playedDate || !playedTime) {
+    return NextResponse.json({ error: 'Played date and time are required' }, { status: 400 })
   }
   if (!Array.isArray(sets) || sets.length === 0) {
     return NextResponse.json({ error: 'At least one set is required' }, { status: 400 })
@@ -173,6 +180,11 @@ export async function POST(request: Request) {
 
   const now = new Date()
 
+  const playedAt = new Date(`${playedDate}T${playedTime}:00`)
+  if (Number.isNaN(playedAt.getTime())) {
+    return NextResponse.json({ error: 'Invalid played date or time' }, { status: 400 })
+  }
+
   if (activeSeason.startedAt > now) {
     return NextResponse.json({ error: 'Season has not started yet' }, { status: 400 })
   }
@@ -193,6 +205,7 @@ export async function POST(request: Request) {
       setScores: sets,
       team1Sets,
       team2Sets,
+      playedAt,
       expiresAt,
     })
     .returning()
