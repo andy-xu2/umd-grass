@@ -93,11 +93,14 @@ export default function SubmitMatchPage() {
   const [sets, setSets] = useState<SetScore[]>([emptySet()])
 
   const [playedDate, setPlayedDate] = useState('')
-  const [playedTime, setPlayedTime] = useState('')
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const [playedHour, setPlayedHour] = useState('')
+  const [playedMinute, setPlayedMinute] = useState('')
+  const [playedPeriod, setPlayedPeriod] = useState('')
 
   const loadData = useCallback(async () => {
     const [usersRes, matchesRes, seasonsRes] = await Promise.all([
@@ -158,6 +161,21 @@ export default function SubmitMatchPage() {
     setSets(prev => prev.filter((_, i) => i !== index))
   }
 
+  function formatPlayedTime() {
+    if (!playedHour || !playedMinute || !playedPeriod) return ''
+
+    let hour = parseInt(playedHour)
+
+    if (playedPeriod === 'PM' && hour !== 12) hour += 12
+    if (playedPeriod === 'AM' && hour === 12) hour = 0
+
+    const hh = String(hour).padStart(2, '0')
+
+    return `${hh}:${playedMinute}`
+  }
+
+  const formattedPlayedTime = formatPlayedTime()
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -172,7 +190,7 @@ export default function SubmitMatchPage() {
         opponent2Id: opponent2,
         sets,
         playedDate,
-        playedTime,
+        playedTime: formattedPlayedTime,
       }),
     })
 
@@ -193,10 +211,12 @@ export default function SubmitMatchPage() {
     setOpponent1('')
     setOpponent2('')
     setPlayedDate('')
-    setPlayedTime('') 
     setSets([emptySet()])
     setSubmitted(false)
     setSubmitError(null)
+    setPlayedHour('')
+    setPlayedMinute('')
+    setPlayedPeriod('')
   }
 
   const handleVerify = async (matchId: string, action: 'confirm' | 'reject') => {
@@ -233,7 +253,7 @@ export default function SubmitMatchPage() {
     !!opponent1 &&
     !!opponent2 &&
     !!playedDate &&
-    !!playedTime &&
+    !!formattedPlayedTime &&
     sets.length > 0 &&
     allSetsValid &&
     !hasTiedSet &&
@@ -377,12 +397,16 @@ export default function SubmitMatchPage() {
                   
                   {/* Played Date & Time */}
                   <div className="space-y-4">
-                    <h3 className="text-sm font-medium text-muted-foreground">When was this match played?</h3>
+                    <h3 className="text-sm font-medium text-muted-foreground">
+                      When was this match played?
+                    </h3>
 
                     <div className="grid gap-4 sm:grid-cols-2">
+                      {/* Date */}
                       <div className="space-y-2">
-                        <Label>Date</Label>
+                        <Label htmlFor="played-date">Date</Label>
                         <Input
+                          id="played-date"
                           type="date"
                           value={playedDate}
                           onChange={e => setPlayedDate(e.target.value)}
@@ -390,14 +414,56 @@ export default function SubmitMatchPage() {
                         />
                       </div>
 
+                      {/* Time (3 dropdowns) */}
                       <div className="space-y-2">
                         <Label>Time</Label>
-                        <Input
-                          type="time"
-                          value={playedTime}
-                          onChange={e => setPlayedTime(e.target.value)}
-                          required
-                        />
+
+                        <div className="flex gap-2">
+                          {/* Hour */}
+                          <select
+                            value={playedHour}
+                            onChange={e => setPlayedHour(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                            required
+                          >
+                            <option value="">HH</option>
+                            {Array.from({ length: 12 }).map((_, i) => {
+                              const hour = i + 1
+                              return (
+                                <option key={hour} value={hour}>
+                                  {hour}
+                                </option>
+                              )
+                            })}
+                          </select>
+
+                          {/* Minutes */}
+                          <select
+                            value={playedMinute}
+                            onChange={e => setPlayedMinute(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                            required
+                          >
+                            <option value="">MM</option>
+                            {['00', '15', '30', '45'].map(min => (
+                              <option key={min} value={min}>
+                                {min}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* AM / PM */}
+                          <select
+                            value={playedPeriod}
+                            onChange={e => setPlayedPeriod(e.target.value)}
+                            className="flex h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+                            required
+                          >
+                            <option value="">AM/PM</option>
+                            <option value="AM">AM</option>
+                            <option value="PM">PM</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </div>
