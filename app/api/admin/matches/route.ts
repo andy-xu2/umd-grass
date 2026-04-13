@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
       team2Sets: matches.team2Sets,
       status: matches.status,
       submittedAt: matches.submittedAt,
+      playedAt: matches.playedAt,
       expiresAt: matches.expiresAt,
       verifiedBy: matches.verifiedBy,
       verifiedAt: matches.verifiedAt,
@@ -66,7 +67,7 @@ export async function GET(request: NextRequest) {
     .innerJoin(t2p1, eq(matches.team2Player1Id, t2p1.id))
     .innerJoin(t2p2, eq(matches.team2Player2Id, t2p2.id))
     .where(eq(matches.seasonId, seasonId))
-    .orderBy(desc(matches.submittedAt))
+    .orderBy(desc(matches.playedAt), desc(matches.submittedAt))
     .limit(100)
 
   if (rows.length === 0) return NextResponse.json([])
@@ -101,6 +102,7 @@ export async function GET(request: NextRequest) {
     team2Sets: row.team2Sets,
     status: row.status,
     submittedAt: row.submittedAt.toISOString(),
+    playedAt: (row.playedAt ?? row.submittedAt).toISOString(),
     expiresAt: row.expiresAt.toISOString(),
     verifiedBy: row.verifiedBy,
     verifiedAt: row.verifiedAt?.toISOString() ?? null,

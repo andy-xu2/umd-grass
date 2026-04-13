@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       .select()
       .from(matches)
       .where(and(eq(matches.seasonId, seasonId), eq(matches.status, 'CONFIRMED')))
-      .orderBy(asc(matches.submittedAt))
+      .orderBy(asc(matches.playedAt), asc(matches.submittedAt))
 
     // Gather all players involved in this season's confirmed matches.
     const playerIds = Array.from(

@@ -90,6 +90,9 @@ export const matches = pgTable('matches', {
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).defaultNow().notNull(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(), // submittedAt + 7 days
+
+  playedAt: timestamp('played_at', { withTimezone: true }).notNull(),
+
 })
 
 /**

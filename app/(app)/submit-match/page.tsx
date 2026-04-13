@@ -91,6 +91,10 @@ export default function SubmitMatchPage() {
   const [opponent1, setOpponent1] = useState('')
   const [opponent2, setOpponent2] = useState('')
   const [sets, setSets] = useState<SetScore[]>([emptySet()])
+
+  const [playedDate, setPlayedDate] = useState('')
+  const [playedTime, setPlayedTime] = useState('')
+
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -167,6 +171,8 @@ export default function SubmitMatchPage() {
         opponent1Id: opponent1,
         opponent2Id: opponent2,
         sets,
+        playedDate,
+        playedTime,
       }),
     })
 
@@ -186,6 +192,8 @@ export default function SubmitMatchPage() {
     setTeammate('')
     setOpponent1('')
     setOpponent2('')
+    setPlayedDate('')
+    setPlayedTime('') 
     setSets([emptySet()])
     setSubmitted(false)
     setSubmitError(null)
@@ -224,6 +232,8 @@ export default function SubmitMatchPage() {
     !!teammate &&
     !!opponent1 &&
     !!opponent2 &&
+    !!playedDate &&
+    !!playedTime &&
     sets.length > 0 &&
     allSetsValid &&
     !hasTiedSet &&
@@ -360,6 +370,33 @@ export default function SubmitMatchPage() {
                           options={otherUsers.filter(u => u.id !== teammate && u.id !== opponent1)}
                           placeholder="Select opponent"
                           disabled={loadingData}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Played Date & Time */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-medium text-muted-foreground">When was this match played?</h3>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Date</Label>
+                        <Input
+                          type="date"
+                          value={playedDate}
+                          onChange={e => setPlayedDate(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Time</Label>
+                        <Input
+                          type="time"
+                          value={playedTime}
+                          onChange={e => setPlayedTime(e.target.value)}
+                          required
                         />
                       </div>
                     </div>
