@@ -43,7 +43,7 @@ import {
 import { toast } from 'sonner'
 import { ShieldAlert, Plus, Pencil, Loader2, CalendarDays, Trash2, ClipboardEdit, Search, Check, X } from 'lucide-react'
 import type { Season, UserWithStats, MatchResponse, SetScore } from '@/lib/types'
-
+import { formatInTimeZone } from 'date-fns-tz'
 
 interface Props {
   initialSeasons: Season[]
@@ -57,6 +57,14 @@ function formatDate(iso: string) {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+function formatDateTimeEst(iso: string) {
+  return formatInTimeZone(
+    iso,
+    'America/New_York',
+    'MMM d, yyyy h:mm a',
+  )
 }
 
 function ScoreDisplay({ match }: { match: MatchResponse }) {
@@ -450,11 +458,12 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   function openEditPlayedAt(match: MatchResponse) {
     setEditPlayedAtMatch(match)
 
-    const played = new Date(match.playedAt)
-    const localDate = new Date(played.getTime() - played.getTimezoneOffset() * 60000)
-
-    setEditPlayedDate(localDate.toISOString().split('T')[0])
-    setEditPlayedTime(localDate.toTimeString().slice(0, 5))
+    setEditPlayedDate(
+      formatInTimeZone(match.playedAt, 'America/New_York', 'yyyy-MM-dd'),
+    )
+    setEditPlayedTime(
+      formatInTimeZone(match.playedAt, 'America/New_York', 'HH:mm'),
+    )
   }
 
   async function handleSavePlayedAt() {
@@ -855,7 +864,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                               </span>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(match.playedAt)}
+                              {formatDateTimeEst(match.playedAt)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">
@@ -945,7 +954,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                               </span>
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {formatDate(match.playedAt)}
+                              {formatDateTimeEst(match.playedAt)}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">

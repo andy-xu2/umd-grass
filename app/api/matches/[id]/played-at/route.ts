@@ -5,6 +5,7 @@ import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 import { recalculateSeasonRr } from '@/lib/recalculate-rr'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function PATCH(
   request: Request,
@@ -39,7 +40,11 @@ export async function PATCH(
     )
   }
 
-  const playedAt = new Date(`${playedDate}T${playedTime}:00`)
+  const playedAt = fromZonedTime(
+    `${playedDate} ${playedTime}:00`,
+    'America/New_York',
+  )
+
   if (Number.isNaN(playedAt.getTime())) {
     return NextResponse.json(
       { error: 'Invalid played date or time' },
