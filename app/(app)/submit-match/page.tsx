@@ -17,6 +17,7 @@ import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock,
 import { cn } from '@/lib/utils'
 import { isUnranked } from '@/lib/mock-data'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
+import { formatInTimeZone } from 'date-fns-tz'
 
 function PlayerCombobox({
   value,
@@ -247,6 +248,14 @@ export default function SubmitMatchPage() {
     return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
+  function formatDisplayDateTime(iso: string) {
+    return formatInTimeZone(
+      iso,
+      'America/New_York',
+      'MMMM d, yyyy h:mm a',
+    )
+  }
+
   const canSubmit =
     inSession &&
     !!teammate &&
@@ -327,7 +336,7 @@ export default function SubmitMatchPage() {
                     <div className="flex items-start gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
                       <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                        <span className="font-medium">{activeSeason.name} ends on {formatDisplayDate(activeSeason.endedAt!)}.</span>
+                        <span className="font-medium">{activeSeason.name} ends on {formatDisplayDateTime(activeSeason.endedAt!)}.</span>
                         {daysUntilEnd === 1 ? ' Last day to submit!' : ` ${daysUntilEnd} days left.`}
                       </p>
                     </div>
@@ -613,7 +622,7 @@ export default function SubmitMatchPage() {
                   </div>
                   <h3 className="mt-4 text-lg font-semibold">{activeSeason.name} hasn&apos;t started yet</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Season opens on <span className="font-medium text-foreground">{formatDisplayDate(activeSeason.startedAt)}</span>
+                    Season opens on <span className="font-medium text-foreground">{formatDisplayDateTime(activeSeason.startedAt)}</span>
                   </p>
                 </div>
               ) : seasonHasEnded && activeSeason ? (
@@ -623,7 +632,7 @@ export default function SubmitMatchPage() {
                   </div>
                   <h3 className="mt-4 text-lg font-semibold">Season has ended</h3>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {activeSeason.name} ended on <span className="font-medium text-foreground">{formatDisplayDate(activeSeason.endedAt!)}</span>
+                    {activeSeason.name} ended on <span className="font-medium text-foreground">{formatDisplayDateTime(activeSeason.endedAt!)}</span>
                   </p>
                 </div>
               ) : (
