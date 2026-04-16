@@ -11,7 +11,7 @@ import { MatchCard } from '@/components/match-card'
 import { SeasonSelector } from '@/components/season-selector'
 import { cn, getInitials } from '@/lib/utils'
 import { getSkillTier, isUnranked } from '@/lib/mock-data'
-import { Trophy, Gamepad2, Target, TrendingUp, ArrowLeft, User } from 'lucide-react'
+import { Trophy, Gamepad2, Target, TrendingUp, ArrowLeft, User, Swords } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
 import type { MatchResponse } from '@/lib/types'
@@ -140,6 +140,23 @@ export default function PlayerProfilePage() {
 
   const confirmedMatches = matches.filter(m => m.status === 'CONFIRMED')
 
+  // Head-to-head: confirmed matches where currentUser and targetPlayer were on opposing teams
+  const h2hMatches = currentUserId
+    ? confirmedMatches.filter(m => {
+        const meOnTeam1 = m.team1Player1.id === currentUserId || m.team1Player2.id === currentUserId
+        const meOnTeam2 = m.team2Player1.id === currentUserId || m.team2Player2.id === currentUserId
+        const themOnTeam1 = m.team1Player1.id === playerId || m.team1Player2.id === playerId
+        const themOnTeam2 = m.team2Player1.id === playerId || m.team2Player2.id === playerId
+        return (meOnTeam1 && themOnTeam2) || (meOnTeam2 && themOnTeam1)
+      })
+    : []
+
+  const h2hWins = h2hMatches.filter(m => {
+    const meOnTeam1 = m.team1Player1.id === currentUserId || m.team1Player2.id === currentUserId
+    return meOnTeam1 ? m.team1Sets > m.team2Sets : m.team2Sets > m.team1Sets
+  }).length
+  const h2hLosses = h2hMatches.length - h2hWins
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -253,6 +270,53 @@ export default function PlayerProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Head-to-Head */}
+      {currentUserId && currentUserId !== playerId && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Swords className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Head to Head</CardTitle>
+            </div>
+            <CardDescription>Your record against {profile.name}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {matchesLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : h2hMatches.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-2">
+                You haven&apos;t played against {profile.name} yet.
+              </p>
+            ) : (
+              <>
+                <div className="flex items-center justify-center gap-8 py-2">
+                  <div className="text-center">
+                    <p className="text-4xl font-bold text-green-500">{h2hWins}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Wins</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-muted-foreground">–</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-4xl font-bold text-red-500">{h2hLosses}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Losses</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {h2hMatches.map(match => (
+                    <MatchCard
+                      key={match.id}
+                      match={match}
+                      currentUserId={currentUserId}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Match History */}
       <Card>
