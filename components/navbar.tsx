@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users } from 'lucide-react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users, List } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
@@ -19,6 +19,7 @@ const navItems = [
   { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/players', label: 'Players', icon: Users },
   { href: '/submit-match', label: 'Submit Match', icon: PlusCircle },
+  { href: '/queue', label: 'Queue', icon: List}
 ]
 
 export function Navbar() {

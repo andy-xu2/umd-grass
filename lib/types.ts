@@ -82,3 +82,30 @@ export interface LeaderboardResponse {
   entries: LeaderboardEntry[]
   seasonId: string | null
 }
+
+export interface PlayerInfo {
+  id: string
+  name: string
+  avatarUrl: string | null
+}
+
+export interface QueueTeamResponse {
+  id: string
+  courtId: string
+  player1: PlayerInfo
+  player2: PlayerInfo
+  position: number
+  createdAt: string
+}
+
+export interface CourtResponse {
+  id: string
+  name: string
+  createdBy: string
+  team1Player1: PlayerInfo
+  team1Player2: PlayerInfo
+  team2Player1: PlayerInfo
+  team2Player2: PlayerInfo
+  createdAt: string
+  queue: QueueTeamResponse[]
+}
