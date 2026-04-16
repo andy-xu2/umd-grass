@@ -360,7 +360,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     if (res.ok) {
       toast.success(action === 'confirm' ? 'Match confirmed' : 'Match rejected')
 
-      // Optimistically update the match immediately so the UI moves without flashing
+      // Optimistically update the match immediately so the UI moves without flashing      
       setMatches(prev =>
         prev.map(m =>
           m.id === matchId
@@ -392,6 +392,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     setEditScoreMatch(match)
     setEditScoreSets(match.setScores ? [...match.setScores] : [{ team1: 0, team2: 0 }])
   }
+
+  
 
   function updateSet(idx: number, field: 'team1' | 'team2', value: string) {
     setEditScoreSets(prev =>
