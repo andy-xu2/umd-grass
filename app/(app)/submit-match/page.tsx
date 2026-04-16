@@ -279,29 +279,31 @@ export default function SubmitMatchPage() {
       </div>
 
       <Tabs defaultValue="submit" className="space-y-4">
-        <TabsList className="flex gap-2 bg-transparent p-0">
-          <TabsTrigger
-            value="submit"
-            className="gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Submit Match
-          </TabsTrigger>
-          <TabsTrigger
-            value="verify"
-            className="gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <Clock className="h-4 w-4" />
-            Verify ({verifiableMatches.length})
-          </TabsTrigger>
-          <TabsTrigger
-            value="awaiting"
-            className="gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
-            <Hourglass className="h-4 w-4" />
-            Pending Confirmation ({awaitingMatches.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <TabsList className="flex w-max gap-2 bg-transparent p-0 pb-1">
+            <TabsTrigger
+              value="submit"
+              className="shrink-0 gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Submit Match
+            </TabsTrigger>
+            <TabsTrigger
+              value="verify"
+              className="shrink-0 gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Clock className="h-4 w-4" />
+              Verify ({verifiableMatches.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="awaiting"
+              className="shrink-0 gap-2 rounded-lg border border-border bg-secondary/40 px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+            >
+              <Hourglass className="h-4 w-4" />
+              Pending Confirmation ({awaitingMatches.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="submit">
           <Card>
