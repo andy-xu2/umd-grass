@@ -221,12 +221,23 @@ export default function SubmitMatchPage() {
   }
 
   const handleVerify = async (matchId: string, action: 'confirm' | 'reject') => {
+    // Optimistically remove the match immediately so the UI responds instantly
+    const previous = myMatches
+    setMyMatches(prev => prev.filter(m => m.id !== matchId))
+
     const res = await fetch(`/api/matches/${matchId}/verify`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action }),
     })
-    if (res.ok) await loadData()
+
+    if (res.ok) {
+      // Refresh in background to sync any RR/stat changes
+      loadData()
+    } else {
+      // Restore on failure
+      setMyMatches(previous)
+    }
   }
 
   const handleConfirm = (matchId: string) => handleVerify(matchId, 'confirm')
