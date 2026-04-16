@@ -8,6 +8,7 @@ import { matches, users, rrChanges, seasons } from '@/drizzle/schema'
 import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function buildMatchesForUser(userId: string): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -180,7 +181,10 @@ export async function POST(request: Request) {
 
   const now = new Date()
 
-  const playedAt = new Date(`${playedDate}T${playedTime}:00`)
+  const playedAt = fromZonedTime(
+    `${playedDate} ${playedTime}:00`,
+    'America/New_York',
+  )  
   if (Number.isNaN(playedAt.getTime())) {
     return NextResponse.json({ error: 'Invalid played date or time' }, { status: 400 })
   }
