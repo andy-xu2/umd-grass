@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Loader2, PlusCircle, Users, ChevronDown, ChevronUp, Pencil } from 'lucide-react'
+import { Loader2, PlusCircle, Users, ChevronDown, ChevronUp, Pencil, Trash2, UserPlus } from 'lucide-react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { ChevronsUpDown, Check } from 'lucide-react'
@@ -495,53 +495,53 @@ export default function QueuePage() {
                         <div className="flex flex-wrap gap-2">
                         <Button
                             variant="outline"
+                            size="sm"
                             onClick={() => setExpandedCourtId(expanded ? null : court.id)}
                         >
-                            {expanded ? (
-                            <>
-                                <ChevronUp className="mr-2 h-4 w-4" />
-                                View
-                            </>
-                            ) : (
-                            <>
-                                <ChevronDown className="mr-2 h-4 w-4" />
-                                View
-                            </>
-                            )}
+                            {expanded ? <ChevronUp className="h-4 w-4 sm:mr-2" /> : <ChevronDown className="h-4 w-4 sm:mr-2" />}
+                            <span className="hidden sm:inline">View</span>
                         </Button>
                         <Button
                             variant="outline"
+                            size="sm"
                             onClick={() => openEditCourt(court)}
                         >
-                            Edit Players
+                            <Pencil className="h-4 w-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Edit Players</span>
                         </Button>
 
                         <Button
+                            size="sm"
                             onClick={() => {
                             setQueueOpenCourt(court)
                             setQueuePlayer1('')
                             setQueuePlayer2('')
                             }}
                         >
-                            Queue
+                            <UserPlus className="h-4 w-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Queue</span>
                         </Button>
 
                         <Button
                             variant="secondary"
+                            size="sm"
                             onClick={() => {
                             setNextGameCourt(court)
                             setWinningTeam('')
                             }}
                             disabled={court.queue.length === 0}
                         >
-                            Next Game
+                            <span className="sm:hidden">Next</span>
+                            <span className="hidden sm:inline">Next Game</span>
                         </Button>
 
                         <Button
-                            variant="destructive"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => handleDeleteCourt(court.id)}
                         >
-                            Delete Court
+                            <Trash2 className="h-4 w-4" />
                         </Button>
 
                         <Dialog
