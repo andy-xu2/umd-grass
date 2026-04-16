@@ -487,7 +487,7 @@ export default function QueuePage() {
                     <div className="flex items-start justify-between gap-4">
                         <div>
                         <CardTitle>{court.name}</CardTitle>
-                        <CardDescription>
+                        <CardDescription className="hidden sm:block">
                             Current court matchup and waiting teams
                         </CardDescription>
                         </div>
