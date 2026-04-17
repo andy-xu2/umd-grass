@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { getSkillTier } from '@/lib/mock-data'
+import { getSkillTier } from '@/lib/ranks'
 import { cn, getInitials } from '@/lib/utils'
 import type { LeaderboardEntry } from '@/lib/types'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'

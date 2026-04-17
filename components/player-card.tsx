@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { getSkillTier, getWinRate, isUnranked } from '@/lib/mock-data'
+import { getSkillTier, getWinRate, isUnranked } from '@/lib/ranks'
 import { cn, getInitials } from '@/lib/utils'
 
 export interface PlayerCardUser {

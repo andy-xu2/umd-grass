@@ -15,7 +15,7 @@ import { getInitials } from '@/lib/utils'
 import { createClient } from '@/lib/supabase-browser'
 import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock, AlertTriangle, ChevronsUpDown, Check, Hourglass } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isUnranked } from '@/lib/mock-data'
+import { isUnranked } from '@/lib/ranks'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
 import { formatInTimeZone } from 'date-fns-tz'
 
