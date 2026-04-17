@@ -7,59 +7,51 @@ import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats, rrChanges } from '@/drizzle/schema'
 import { eq, desc, gte, and, inArray, sql } from 'drizzle-orm'
+import { cacheTag, cacheLife } from 'next/cache'
 import type { LeaderboardEntry, LeaderboardResponse } from '@/lib/types'
 
-export async function GET(request: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+async function fetchLifetimeLeaderboard(): Promise<LeaderboardResponse> {
+  'use cache'
+  cacheTag('leaderboard-lifetime')
+  cacheLife('minutes')
 
-  const { searchParams } = new URL(request.url)
-  const seasonIdParam = searchParams.get('seasonId')
+  const rows = await db
+    .select({
+      userId: users.id,
+      name: users.name,
+      avatarUrl: users.avatarUrl,
+      totalGames: sql<number>`sum(${seasonStats.gamesPlayed})::int`,
+      totalWins: sql<number>`sum(${seasonStats.wins})::int`,
+      totalLosses: sql<number>`sum(${seasonStats.losses})::int`,
+      peakRR: sql<number>`max(${seasonStats.rr})::int`,
+    })
+    .from(seasonStats)
+    .innerJoin(users, eq(seasonStats.userId, users.id))
+    .where(eq(users.isDeleted, false))
+    .groupBy(users.id, users.name, users.avatarUrl)
+    .having(sql`sum(${seasonStats.gamesPlayed}) >= 1`)
+    .orderBy(desc(sql`sum(${seasonStats.wins})`), desc(sql`max(${seasonStats.rr})`))
 
-  // ── Lifetime leaderboard ────────────────────────────────────────────────────
-  if (seasonIdParam === 'lifetime') {
-    const rows = await db
-      .select({
-        userId: users.id,
-        name: users.name,
-        avatarUrl: users.avatarUrl,
-        totalGames: sql<number>`sum(${seasonStats.gamesPlayed})::int`,
-        totalWins: sql<number>`sum(${seasonStats.wins})::int`,
-        totalLosses: sql<number>`sum(${seasonStats.losses})::int`,
-        peakRR: sql<number>`max(${seasonStats.rr})::int`,
-      })
-      .from(seasonStats)
-      .innerJoin(users, eq(seasonStats.userId, users.id))
-      .where(eq(users.isDeleted, false))
-      .groupBy(users.id, users.name, users.avatarUrl)
-      .having(sql`sum(${seasonStats.gamesPlayed}) >= 1`)
-      .orderBy(desc(sql`sum(${seasonStats.wins})`), desc(sql`max(${seasonStats.rr})`))
+  let rankCounter = 0
+  const entries: LeaderboardEntry[] = rows.map(row => ({
+    userId: row.userId,
+    name: row.name ?? '',
+    avatarUrl: row.avatarUrl,
+    rr: row.peakRR,
+    gamesPlayed: row.totalGames,
+    wins: row.totalWins,
+    losses: row.totalLosses,
+    rank: ++rankCounter,
+    rankTrend: null,
+  }))
 
-    let rankCounter = 0
-    const entries: LeaderboardEntry[] = rows.map(row => ({
-      userId: row.userId,
-      name: row.name ?? '',
-      avatarUrl: row.avatarUrl,
-      rr: row.peakRR,
-      gamesPlayed: row.totalGames,
-      wins: row.totalWins,
-      losses: row.totalLosses,
-      rank: ++rankCounter,
-      rankTrend: null,
-    }))
+  return { entries, seasonId: 'lifetime' }
+}
 
-    return NextResponse.json({ entries, seasonId: 'lifetime' } satisfies LeaderboardResponse)
-  }
-
-  let seasonId = seasonIdParam
-  if (!seasonId) {
-    const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
-    if (!activeSeason) {
-      return NextResponse.json({ entries: [], seasonId: null } satisfies LeaderboardResponse)
-    }
-    seasonId = activeSeason.id
-  }
+async function fetchSeasonLeaderboard(seasonId: string): Promise<LeaderboardResponse> {
+  'use cache'
+  cacheTag(`leaderboard-${seasonId}`)
+  cacheLife('minutes')
 
   const rows = await db
     .select({
@@ -83,7 +75,6 @@ export async function GET(request: NextRequest) {
     rankTrend: null,
   }))
 
-  // Calculate rank trends from most recent rr_changes
   const playerIds = entries.map(e => e.userId)
   if (playerIds.length > 0) {
     const recentChanges = await db
@@ -107,5 +98,29 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ entries, seasonId } satisfies LeaderboardResponse)
+  return { entries, seasonId }
+}
+
+export async function GET(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(request.url)
+  const seasonIdParam = searchParams.get('seasonId')
+
+  if (seasonIdParam === 'lifetime') {
+    return NextResponse.json(await fetchLifetimeLeaderboard())
+  }
+
+  let seasonId = seasonIdParam
+  if (!seasonId) {
+    const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
+    if (!activeSeason) {
+      return NextResponse.json({ entries: [], seasonId: null } satisfies LeaderboardResponse)
+    }
+    seasonId = activeSeason.id
+  }
+
+  return NextResponse.json(await fetchSeasonLeaderboard(seasonId))
 }

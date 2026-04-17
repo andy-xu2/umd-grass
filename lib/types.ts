@@ -83,12 +83,6 @@ export interface LeaderboardResponse {
   seasonId: string | null
 }
 
-export interface PlayerInfo {
-  id: string
-  name: string
-  avatarUrl: string | null
-}
-
 export interface QueueTeamResponse {
   id: string
   courtId: string

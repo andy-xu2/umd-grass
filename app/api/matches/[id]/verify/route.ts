@@ -6,7 +6,8 @@
 //             rr_changes inserted.
 // On reject:  match status set to REJECTED.
 
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
@@ -93,11 +94,15 @@ export async function PATCH(
 
   const isNewest = await isMostRecentConfirmedMatch(claimed.id)
 
-  if (isNewest) {
-    await applyConfirmedMatchIncremental(claimed.id)
-  } else {
-    await recalculateSeasonRr(claimed.seasonId)
-  }
+  after(async () => {
+    if (isNewest) {
+      await applyConfirmedMatchIncremental(claimed.id)
+    } else {
+      await recalculateSeasonRr(claimed.seasonId)
+    }
+    revalidateTag(`leaderboard-${claimed.seasonId}`, 'minutes')
+    revalidateTag('leaderboard-lifetime', 'minutes')
+  })
 
   return NextResponse.json({ ok: true })
 }

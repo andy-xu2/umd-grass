@@ -2,6 +2,7 @@ import withPWA from '@ducanh2912/next-pwa'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  cacheComponents: true,
   images: {
     unoptimized: true,
   },

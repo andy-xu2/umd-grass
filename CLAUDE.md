@@ -6,14 +6,19 @@ A progressive web app (PWA) for the UMD grass volleyball community. It tracks do
 ## Tech Stack
 | Layer | Choice | Why |
 |-------|--------|-----|
-| Framework | Next.js 15 App Router | Full-stack, SSR, API routes, PWA-compatible |
-| Language | TypeScript (strict) | Type safety end-to-end |
-| UI | shadcn/ui + Tailwind CSS v4 | Pre-built accessible components |
+| Framework | Next.js 16.2.0 App Router | Full-stack, SSR, API routes, PWA-compatible |
+| Language | TypeScript 5.7.3 (strict) | Type safety end-to-end |
+| Runtime | React 19.2.4, Node 20 | Latest React features |
+| Bundler | Turbopack | Fast HMR in dev |
+| UI | shadcn/ui + Tailwind CSS 4.2.0 | Pre-built accessible components |
 | Database | PostgreSQL via Supabase | Free tier, relational, same platform as auth/storage |
 | Auth | Supabase Auth + @supabase/ssr | Cookie-based sessions, TOTP 2FA, persistent login |
-| ORM | Drizzle ORM | Lightweight, edge-compatible, no cold-start penalty on Vercel |
+| ORM | Drizzle ORM 0.45.2 | Lightweight, edge-compatible, no cold-start penalty on Vercel |
 | Storage | Supabase Storage | Profile photo uploads |
-| PWA | @ducanh2912/next-pwa | Service worker, offline cache, install prompt |
+| Email | Resend 6.10.0 | Transactional email delivery |
+| PWA | @ducanh2912/next-pwa 10.2.9 | Service worker, offline cache, install prompt |
+| Testing | Vitest 4.1.3 | Unit tests for ELO logic |
+| Analytics | @vercel/analytics | Usage tracking |
 | Hosting | Vercel (Hobby free tier) | Native Next.js deployment |
 
 ## Key Invariants — Never Violate These
