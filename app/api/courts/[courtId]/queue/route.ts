@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { courtQueueEntries } from '@/drizzle/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, or } from 'drizzle-orm'
 
 export async function POST(
   request: Request,
@@ -32,6 +32,26 @@ export async function POST(
 
   if (player1Id === player2Id) {
     return NextResponse.json({ error: 'Players must be different' }, { status: 400 })
+  }
+
+  const alreadyQueued = await db
+    .select({ id: courtQueueEntries.id })
+    .from(courtQueueEntries)
+    .where(
+      or(
+        eq(courtQueueEntries.player1Id, player1Id),
+        eq(courtQueueEntries.player2Id, player1Id),
+        eq(courtQueueEntries.player1Id, player2Id),
+        eq(courtQueueEntries.player2Id, player2Id),
+      ),
+    )
+    .limit(1)
+
+  if (alreadyQueued.length > 0) {
+    return NextResponse.json(
+      { error: 'One or both players are already in a queue' },
+      { status: 409 },
+    )
   }
 
   const existing = await db
