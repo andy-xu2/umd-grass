@@ -94,10 +94,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Court name is required' }, { status: 400 })
   }
 
-  const [created] = await db
-    .insert(courts)
-    .values({ name: body.name.trim(), createdBy: user.id })
-    .returning()
+  try {
+    const [created] = await db
+      .insert(courts)
+      .values({ name: body.name.trim(), createdBy: user.id })
+      .returning()
 
-  return NextResponse.json(created)
+    return NextResponse.json(created)
+  } catch (e) {
+    console.error('Failed to create court:', e)
+    return NextResponse.json({ error: 'Failed to create court' }, { status: 500 })
+  }
 }

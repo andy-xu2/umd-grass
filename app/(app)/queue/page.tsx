@@ -14,6 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { ChevronsUpDown, Check } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { createClient } from '@/lib/supabase-browser'
 import type { CourtResponse, UserWithStats } from '@/lib/types'
 
 function PlayerCombobox({
@@ -21,11 +22,13 @@ function PlayerCombobox({
   onChange,
   options,
   placeholder,
+  disabled,
 }: {
   value: string
   onChange: (id: string) => void
   options: UserWithStats[]
   placeholder: string
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const selected = options.find(u => u.id === value)
@@ -37,6 +40,7 @@ function PlayerCombobox({
           type="button"
           variant="outline"
           role="combobox"
+          disabled={disabled}
           className={cn('w-full justify-between font-normal', !selected && 'text-muted-foreground')}
         >
           {selected ? selected.name : placeholder}
@@ -71,6 +75,7 @@ export default function QueuePage() {
   const [courts, setCourts] = useState<CourtResponse[]>([])
   const [users, setUsers] = useState<UserWithStats[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   const [expandedCourtId, setExpandedCourtId] = useState<string | null>(null)
 
@@ -103,6 +108,10 @@ export default function QueuePage() {
   }, [])
 
   useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) setCurrentUserId(data.user.id)
+    })
     loadData().finally(() => setLoading(false))
   }, [loadData])
 
@@ -119,7 +128,11 @@ export default function QueuePage() {
       body: JSON.stringify({ name: courtName }),
     })
     setIsCreating(false)
-    if (!res.ok) return
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error ?? 'Failed to create court')
+      return
+    }
     setCourtName('')
     setCreateOpen(false)
     await loadData()
@@ -301,7 +314,7 @@ export default function QueuePage() {
                         size="sm"
                         onClick={() => {
                           setQueueOpenCourt(court)
-                          setQueuePlayer1('')
+                          setQueuePlayer1(currentUserId ?? '')
                           setQueuePlayer2('')
                         }}
                       >
@@ -390,6 +403,8 @@ export default function QueuePage() {
                   onOpenChange={open => {
                     if (open) {
                       setQueueOpenCourt(court)
+                      setQueuePlayer1(currentUserId ?? '')
+                      setQueuePlayer2('')
                     } else {
                       setQueueOpenCourt(null)
                       setQueuePlayer1('')
@@ -405,12 +420,13 @@ export default function QueuePage() {
 
                     <div className="space-y-4 py-2">
                       <div className="space-y-2">
-                        <Label>Player 1</Label>
+                        <Label>Player 1 (you)</Label>
                         <PlayerCombobox
                           value={queuePlayer1}
                           onChange={setQueuePlayer1}
                           options={sortedUsers.filter(u => u.id !== queuePlayer2)}
                           placeholder="Select player"
+                          disabled
                         />
                       </div>
 
