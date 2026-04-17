@@ -73,6 +73,7 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={true}
                   className={cn(
                     'relative flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                     isActive
@@ -93,6 +94,7 @@ export function Navbar() {
             {isAdmin && (
               <Link
                 href="/admin"
+                prefetch={true}
                 className={cn(
                   'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
                   pathname === '/admin'
