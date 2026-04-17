@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -140,7 +141,11 @@ export default function QueuePage() {
       body: JSON.stringify({ player1Id: queuePlayer1, player2Id: queuePlayer2 }),
     })
     setIsQueueing(false)
-    if (!res.ok) return
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      toast.error(data.error ?? 'Failed to join queue')
+      return
+    }
     setQueuePlayer1('')
     setQueuePlayer2('')
     setQueueOpenCourt(null)
@@ -203,7 +208,7 @@ export default function QueuePage() {
             Add Court
           </CardTitle>
           <CardDescription>
-            Create a court, then allow teams to join the queue.
+            Create a court by name, then let teams join the queue.
           </CardDescription>
         </CardHeader>
         <CardContent>
