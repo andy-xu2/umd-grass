@@ -114,12 +114,6 @@ export const courts = pgTable('courts', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   createdBy: uuid('created_by').notNull().references(() => users.id),
-
-  team1Player1Id: uuid('team1_player1_id').notNull().references(() => users.id),
-  team1Player2Id: uuid('team1_player2_id').notNull().references(() => users.id),
-  team2Player1Id: uuid('team2_player1_id').notNull().references(() => users.id),
-  team2Player2Id: uuid('team2_player2_id').notNull().references(() => users.id),
-
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 

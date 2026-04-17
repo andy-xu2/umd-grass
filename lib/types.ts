@@ -102,10 +102,6 @@ export interface CourtResponse {
   id: string
   name: string
   createdBy: string
-  team1Player1: PlayerInfo
-  team1Player2: PlayerInfo
-  team2Player1: PlayerInfo
-  team2Player2: PlayerInfo
   createdAt: string
   queue: QueueTeamResponse[]
 }
