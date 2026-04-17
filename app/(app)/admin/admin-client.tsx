@@ -836,7 +836,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                     No pending matches match your search.
                   </p>
                 ) : (
-                  <div className="rounded-lg border">
+                  <div className="max-h-[520px] overflow-y-auto rounded-lg border">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -918,7 +918,7 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                     No confirmed matches match your search.
                   </p>
                 ) : (
-                  <div className="rounded-lg border">
+                  <div className="max-h-[520px] overflow-y-auto rounded-lg border">
                     <Table>
                       <TableHeader>
                         <TableRow>
