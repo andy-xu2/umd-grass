@@ -10,13 +10,13 @@ import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
 import { fromZonedTime } from 'date-fns-tz'
 
-export async function buildMatchesForUser(userId: string): Promise<MatchResponse[]> {
+export async function buildMatchesForUser(userId: string, limit?: number): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
   const t1p2 = alias(users, 't1p2')
   const t2p1 = alias(users, 't2p1')
   const t2p2 = alias(users, 't2p2')
 
-  const rows = await db
+  const baseQuery = db
     .select({
       id: matches.id,
       seasonId: matches.seasonId,
@@ -61,6 +61,9 @@ export async function buildMatchesForUser(userId: string): Promise<MatchResponse
       ),
     )
     .orderBy(desc(matches.playedAt), desc(matches.submittedAt))
+    .$dynamic()
+
+  const rows = await (limit ? baseQuery.limit(limit) : baseQuery)
 
   if (rows.length === 0) return []
 

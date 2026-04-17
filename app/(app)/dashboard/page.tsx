@@ -2,8 +2,9 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats, rrChanges, matches } from '@/drizzle/schema'
-import { eq, and, desc, gte, inArray } from 'drizzle-orm'
+import { users, seasons, seasonStats, matches } from '@/drizzle/schema'
+import { eq, and, or, asc } from 'drizzle-orm'
+import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
 import { PlayerCard } from '@/components/player-card'
 import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
@@ -13,7 +14,6 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Clock, Trophy, Loader2, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { LeaderboardEntry } from '@/lib/types'
 
 // ─── Async streaming sections ─────────────────────────────────────────────────
 
@@ -24,19 +24,10 @@ async function VerifyNotice({ userId }: { userId: string }) {
     .where(
       and(
         eq(matches.status, 'PENDING'),
-        eq(matches.team2Player1Id, userId),
+        or(eq(matches.team2Player1Id, userId), eq(matches.team2Player2Id, userId)),
       ),
     )
-  const pending2 = await db
-    .select({ id: matches.id })
-    .from(matches)
-    .where(
-      and(
-        eq(matches.status, 'PENDING'),
-        eq(matches.team2Player2Id, userId),
-      ),
-    )
-  const count = pending.length + pending2.length
+  const count = pending.length
   if (count === 0) return null
 
   return (
@@ -63,56 +54,7 @@ async function DashboardLeaderboard({ userId }: { userId: string }) {
     )
   }
 
-  const rows = await db
-    .select({
-      userId: users.id,
-      name: users.name,
-      avatarUrl: users.avatarUrl,
-      rr: seasonStats.rr,
-      gamesPlayed: seasonStats.gamesPlayed,
-      wins: seasonStats.wins,
-      losses: seasonStats.losses,
-    })
-    .from(seasonStats)
-    .innerJoin(users, eq(seasonStats.userId, users.id))
-    .where(and(eq(seasonStats.seasonId, activeSeason.id), gte(seasonStats.gamesPlayed, 5)))
-    .orderBy(desc(seasonStats.rr))
-
-  // Deduplicate by userId, keeping the row with the highest RR
-  const seen = new Map<string, typeof rows[number]>()
-  for (const row of rows) {
-    const existing = seen.get(row.userId)
-    if (!existing || row.rr > existing.rr) seen.set(row.userId, row)
-  }
-  const deduped = Array.from(seen.values()).sort((a, b) => b.rr - a.rr)
-
-  let rankCounter = 0
-  const entries: LeaderboardEntry[] = deduped.map(row => ({
-    ...row,
-    rank: ++rankCounter,
-    rankTrend: null,
-  }))
-
-  const playerIds = entries.map(e => e.userId)
-  if (playerIds.length > 0) {
-    const recentChanges = await db
-      .select({ userId: rrChanges.userId, rrBefore: rrChanges.rrBefore })
-      .from(rrChanges)
-      .where(and(eq(rrChanges.seasonId, activeSeason.id), inArray(rrChanges.userId, playerIds)))
-      .orderBy(desc(rrChanges.createdAt))
-
-    const latestRrBefore = new Map<string, number>()
-    for (const change of recentChanges) {
-      if (!latestRrBefore.has(change.userId)) latestRrBefore.set(change.userId, change.rrBefore)
-    }
-    for (const entry of entries) {
-      const rrBefore = latestRrBefore.get(entry.userId)
-      if (rrBefore == null) { entry.rankTrend = 0; continue }
-      const prevRank = entries.filter(e => e.userId !== entry.userId && e.rr > rrBefore).length + 1
-      entry.rankTrend = prevRank - entry.rank
-    }
-  }
-
+  const entries = await fetchCachedLeaderboardRows(activeSeason.id)
   return <MiniLeaderboard entries={entries} currentUserId={userId} />
 }
 
@@ -145,7 +87,26 @@ async function DashboardPlayerCard({ userId }: { userId: string }) {
 }
 
 async function DashboardMatches({ userId }: { userId: string }) {
-  const allMatches = await buildMatchesForUser(userId)
+  const [allMatches, placementRows] = await Promise.all([
+    buildMatchesForUser(userId, 50),
+    db
+      .select({ id: matches.id })
+      .from(matches)
+      .where(
+        and(
+          eq(matches.status, 'CONFIRMED'),
+          or(
+            eq(matches.team1Player1Id, userId),
+            eq(matches.team1Player2Id, userId),
+            eq(matches.team2Player1Id, userId),
+            eq(matches.team2Player2Id, userId),
+          ),
+        ),
+      )
+      .orderBy(asc(matches.playedAt), asc(matches.submittedAt))
+      .limit(PLACEMENT_GAMES),
+  ])
+
   const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
   const pendingToVerify = allMatches.filter(
     m =>
@@ -153,14 +114,7 @@ async function DashboardMatches({ userId }: { userId: string }) {
       (m.team2Player1.id === userId || m.team2Player2.id === userId),
   )
 
-  // First PLACEMENT_GAMES confirmed matches (career-wide, sorted oldest first) are placement games
-  const placementMatchIds = new Set(
-    allMatches
-      .filter(m => m.status === 'CONFIRMED')
-      .sort((a, b) => new Date(a.submittedAt).getTime() - new Date(b.submittedAt).getTime())
-      .slice(0, PLACEMENT_GAMES)
-      .map(m => m.id),
-  )
+  const placementMatchIds = new Set(placementRows.map(r => r.id))
 
   return (
     <>
