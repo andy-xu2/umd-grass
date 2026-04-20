@@ -3,8 +3,11 @@ import { matches, seasonStats, rrChanges, seasons } from '@/drizzle/schema'
 import { eq, and, ne, desc, asc } from 'drizzle-orm'
 import { applySeasonDecay } from '@/lib/elo'
 import { applyMatchDeltas } from '@/lib/match-engine'
+import { DEFAULT_RR_CONFIG } from '@/lib/rr-config'
 
 export async function recalculateSeasonRr(seasonId: string) {
+  const rrConfig = DEFAULT_RR_CONFIG
+
   await db.transaction(async tx => {
     const confirmedMatches = await tx
       .select()
@@ -25,7 +28,6 @@ export async function recalculateSeasonRr(seasonId: string) {
 
     await tx.delete(rrChanges).where(eq(rrChanges.seasonId, seasonId))
 
-    // De-duplicate any existing seasonStats rows for this season
     const existingStats = await tx
       .select()
       .from(seasonStats)
@@ -33,14 +35,15 @@ export async function recalculateSeasonRr(seasonId: string) {
 
     const keepByUser = new Map<string, (typeof existingStats)[number]>()
     const dupIds: string[] = []
+
     for (const row of existingStats) {
       keepByUser.has(row.userId) ? dupIds.push(row.id) : keepByUser.set(row.userId, row)
     }
+
     for (const id of dupIds) {
       await tx.delete(seasonStats).where(eq(seasonStats.id, id))
     }
 
-    // Reset or create each player's stats back to their season-start RR
     const statsByUser = new Map<string, (typeof existingStats)[number]>()
 
     for (const userId of playerIds) {
@@ -54,21 +57,46 @@ export async function recalculateSeasonRr(seasonId: string) {
         .orderBy(desc(seasons.startedAt))
         .limit(1)
 
-      const startingRR = prevStats ? applySeasonDecay(prevStats.rr) : 0
+      // For exact parity with the Python test on a first-season replay:
+      // everyone starts at baseStartingRr if you want exact match.
+      // If you want cross-season decay later, swap this back.
+      const startingRR = prevStats
+        ? applySeasonDecay(prevStats.rr)
+        : rrConfig.baseStartingRr
 
       if (existing) {
         await tx
           .update(seasonStats)
           .set({ rr: startingRR, gamesPlayed: 0, wins: 0, losses: 0 })
           .where(eq(seasonStats.id, existing.id))
-        statsByUser.set(userId, { ...existing, rr: startingRR, gamesPlayed: 0, wins: 0, losses: 0 })
+
+        statsByUser.set(userId, {
+          ...existing,
+          rr: startingRR,
+          gamesPlayed: 0,
+          wins: 0,
+          losses: 0,
+        })
       } else {
         const [created] = await tx
           .insert(seasonStats)
-          .values({ userId, seasonId, rr: startingRR, gamesPlayed: 0, wins: 0, losses: 0 })
+          .values({
+            userId,
+            seasonId,
+            rr: startingRR,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+          })
           .returning()
+
         statsByUser.set(userId, created)
       }
+
+      // If you want exact parity with Python across all players in a standalone
+      // single-season test, use this instead:
+      //
+      // const startingRR = rrConfig.baseStartingRr
     }
 
     for (const match of confirmedMatches) {
@@ -76,9 +104,19 @@ export async function recalculateSeasonRr(seasonId: string) {
       const t1p2Stats = statsByUser.get(match.team1Player2Id)
       const t2p1Stats = statsByUser.get(match.team2Player1Id)
       const t2p2Stats = statsByUser.get(match.team2Player2Id)
+
       if (!t1p1Stats || !t1p2Stats || !t2p1Stats || !t2p2Stats) continue
 
-      await applyMatchDeltas(tx, match, t1p1Stats, t1p2Stats, t2p1Stats, t2p2Stats, seasonId)
+      await applyMatchDeltas(
+        tx,
+        match,
+        t1p1Stats,
+        t1p2Stats,
+        t2p1Stats,
+        t2p2Stats,
+        seasonId,
+        rrConfig,
+      )
     }
   })
 }
