@@ -3,7 +3,11 @@ import { matches } from '@/drizzle/schema'
 import { eq, and, or, gt } from 'drizzle-orm'
 
 export async function isMostRecentConfirmedMatch(matchId: string) {
-  const [match] = await db.select().from(matches).where(eq(matches.id, matchId))
+  const [match] = await db
+    .select()
+    .from(matches)
+    .where(eq(matches.id, matchId))
+
   if (!match) return false
 
   const laterMatches = await db

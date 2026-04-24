@@ -3,13 +3,24 @@ import { matches, seasonStats, seasons } from '@/drizzle/schema'
 import { eq, and, ne, desc } from 'drizzle-orm'
 import { applySeasonDecay } from '@/lib/elo'
 import { applyMatchDeltas } from '@/lib/match-engine'
+import { DEFAULT_RR_CONFIG } from '@/lib/rr-config'
 
 export async function applyConfirmedMatchIncremental(matchId: string) {
+  const rrConfig = DEFAULT_RR_CONFIG
+
   await db.transaction(async tx => {
-    const [match] = await tx.select().from(matches).where(eq(matches.id, matchId))
+    const [match] = await tx
+      .select()
+      .from(matches)
+      .where(eq(matches.id, matchId))
+
     if (!match || match.status !== 'CONFIRMED') return
 
-    const [activeSeason] = await tx.select().from(seasons).where(eq(seasons.isActive, true))
+    const [activeSeason] = await tx
+      .select()
+      .from(seasons)
+      .where(eq(seasons.isActive, true))
+
     if (!activeSeason) return
 
     const playerIds = [
@@ -24,6 +35,7 @@ export async function applyConfirmedMatchIncremental(matchId: string) {
         .select()
         .from(seasonStats)
         .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, activeSeason.id)))
+
       if (existing) return existing
 
       const [prevStats] = await tx
@@ -34,11 +46,20 @@ export async function applyConfirmedMatchIncremental(matchId: string) {
         .orderBy(desc(seasons.startedAt))
         .limit(1)
 
-      const startingRR = prevStats ? applySeasonDecay(prevStats.rr) : 0
+      const startingRR = prevStats
+        ? applySeasonDecay(prevStats.rr)
+        : rrConfig.baseStartingRr
 
       const [created] = await tx
         .insert(seasonStats)
-        .values({ userId, seasonId: activeSeason.id, rr: startingRR, gamesPlayed: 0, wins: 0, losses: 0 })
+        .values({
+          userId,
+          seasonId: activeSeason.id,
+          rr: startingRR,
+          gamesPlayed: 0,
+          wins: 0,
+          losses: 0,
+        })
         .returning()
 
       return created
@@ -48,6 +69,15 @@ export async function applyConfirmedMatchIncremental(matchId: string) {
       playerIds.map(getOrCreate),
     )
 
-    await applyMatchDeltas(tx, match, t1p1Stats, t1p2Stats, t2p1Stats, t2p2Stats, activeSeason.id)
+    await applyMatchDeltas(
+      tx,
+      match,
+      t1p1Stats,
+      t1p2Stats,
+      t2p1Stats,
+      t2p2Stats,
+      activeSeason.id,
+      rrConfig,
+    )
   })
 }

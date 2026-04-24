@@ -32,8 +32,8 @@ export const DEFAULT_RR_CONFIG: RrConfig = {
   lifetimePlacementMultiplier: 8.0,
   seasonalPlacementMultiplier: 2.0,
 
-  lifetimePlacementWinMultiplier: 1.1,
-  lifetimePlacementLossMultiplier: 0.9,
+  lifetimePlacementWinMultiplier: 1,
+  lifetimePlacementLossMultiplier: 1,
 
   seasonalPlacementWinMultiplier: 1.0,
   seasonalPlacementLossMultiplier: 1.0,
