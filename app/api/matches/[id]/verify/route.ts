@@ -1,13 +1,4 @@
-// PATCH /api/matches/[id]/verify
-// Body: { action: 'confirm' | 'reject' }
-//
-// Only a player from the opposing team (team2) may call this.
-// On confirm: ELO is calculated for all 4 players, season_stats updated,
-//             rr_changes inserted.
-// On reject:  match status set to REJECTED.
-
-import { NextResponse, after } from 'next/server'
-import { revalidateTag } from 'next/cache'
+import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
@@ -43,6 +34,7 @@ export async function PATCH(
   }
 
   const [match] = await db.select().from(matches).where(eq(matches.id, id))
+
   if (!match) {
     return NextResponse.json({ error: 'Match not found' }, { status: 404 })
   }
@@ -73,14 +65,12 @@ export async function PATCH(
     return NextResponse.json({ ok: true })
   }
 
-  const now = new Date()
-
   const [claimed] = await db
     .update(matches)
     .set({
       status: 'CONFIRMED',
       verifiedBy: user.id,
-      verifiedAt: now,
+      verifiedAt: new Date(),
     })
     .where(and(eq(matches.id, id), eq(matches.status, 'PENDING')))
     .returning({
@@ -92,17 +82,25 @@ export async function PATCH(
     return NextResponse.json({ error: 'Match was already processed' }, { status: 409 })
   }
 
-  const isNewest = await isMostRecentConfirmedMatch(claimed.id)
+  try {
+    const isNewest = await isMostRecentConfirmedMatch(claimed.id)
 
-  after(async () => {
     if (isNewest) {
       await applyConfirmedMatchIncremental(claimed.id)
     } else {
       await recalculateSeasonRr(claimed.seasonId)
     }
-    revalidateTag(`leaderboard-${claimed.seasonId}`, 'minutes')
-    revalidateTag('leaderboard-lifetime', 'minutes')
-  })
 
-  return NextResponse.json({ ok: true })
+    return NextResponse.json({
+      ok: true,
+      recomputed: !isNewest,
+    })
+  } catch (error) {
+    console.error('verify RR update failed:', error)
+
+    return NextResponse.json(
+      { error: 'Failed to update RR after verification' },
+      { status: 500 },
+    )
+  }
 }

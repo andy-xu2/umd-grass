@@ -316,22 +316,37 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
 
   async function handleRecalculateRr() {
     if (!selectedSeasonId) return
+
     setIsRecalculatingRr(true)
 
-    const res = await fetch(`/api/admin/recalculate-rr?seasonId=${selectedSeasonId}`, {
-      method: 'POST',
-    })
+    try {
+      const res = await fetch(`/api/admin/recalculate-rr?seasonId=${selectedSeasonId}`, {
+        method: 'POST',
+      })
 
-    const data = await res.json()
+      let data: { error?: string } | null = null
 
-    if (res.ok) {
+      try {
+        data = await res.json()
+      } catch {
+        data = null
+      }
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to recalculate RR')
+      }
+
       toast.success('RR recalculated')
-      await Promise.all([fetchUsers(selectedSeasonId), fetchMatches(selectedSeasonId)])
-    } else {
-      toast.error(data.error ?? 'Failed to recalculate RR')
-    }
 
-    setIsRecalculatingRr(false)
+      await Promise.all([
+        fetchMatches(selectedSeasonId, { silent: true }),
+        fetchUsers(selectedSeasonId, { silent: true }),
+      ])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to recalculate RR')
+    } finally {
+      setIsRecalculatingRr(false)
+    }
   }
 
   async function handleDeleteMatch(matchId: string) {
