@@ -13,33 +13,33 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { eq, asc, and, ne, desc, inArray } from 'drizzle-orm'
+import { eq, asc, and, ne, desc } from 'drizzle-orm'
 import * as schema from '../drizzle/schema'
 import {
   calculateRrChange,
   applySeasonDecay,
-  K,
   PLACEMENT_GAMES,
-  PLACEMENT_RR_CAP,
-  LIFETIME_PLACEMENT_MULTIPLIER,
-  SEASONAL_PLACEMENT_MULTIPLIER,
+  DEFAULT_PLACEMENT_RR_CAP,
 } from '../lib/elo'
+import { DEFAULT_RR_CONFIG } from '../lib/rr-config'
 
 const { matches, seasonStats, rrChanges, seasons } = schema
 
 const client = postgres(process.env.DATABASE_URL!, { prepare: false })
 const db = drizzle(client, { schema })
 
-// ─── helpers (mirrors verify/route.ts logic) ─────────────────────────────────
+const rrConfig = DEFAULT_RR_CONFIG
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function getPlacementInfo(lifetimeGames: number, seasonGamesPlayed: number) {
   if (lifetimeGames < PLACEMENT_GAMES) {
-    return { kOverride: K * LIFETIME_PLACEMENT_MULTIPLIER, isInitialPlacement: true, noLoss: true }
+    return { kOverride: rrConfig.baseK * rrConfig.lifetimePlacementMultiplier, noLoss: true }
   }
   if (seasonGamesPlayed < PLACEMENT_GAMES) {
-    return { kOverride: K * SEASONAL_PLACEMENT_MULTIPLIER, isInitialPlacement: false, noLoss: true }
+    return { kOverride: rrConfig.baseK * rrConfig.seasonalPlacementMultiplier, noLoss: true }
   }
-  return { kOverride: undefined, isInitialPlacement: false, noLoss: false }
+  return { kOverride: undefined, noLoss: false }
 }
 
 function applyNoLoss(delta: number, noLoss: boolean) {
@@ -97,7 +97,7 @@ async function main() {
     const seasonIndex = allSeasons.findIndex(s => s.id === seasonId)
     const prevSeasons = allSeasons.slice(seasonIndex + 1)
 
-    let startingRR = 0
+    let startingRR = rrConfig.baseStartingRr
     for (const prev of prevSeasons) {
       const [prevStats] = await db
         .select()
@@ -162,10 +162,16 @@ async function main() {
       pointDiff = Math.abs(t1Total - t2Total)
     }
 
-    const t1p1Delta = applyNoLoss(calculateRrChange(t1p1Stats.rr, t1p2Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Sets, totalSets, pointDiff, t1p1Info.kOverride, t1p1Info.isInitialPlacement), t1p1Info.noLoss)
-    const t1p2Delta = applyNoLoss(calculateRrChange(t1p2Stats.rr, t1p1Stats.rr, t2p1Stats.rr, t2p2Stats.rr, team1Sets, totalSets, pointDiff, t1p2Info.kOverride, t1p2Info.isInitialPlacement), t1p2Info.noLoss)
-    const t2p1Delta = applyNoLoss(calculateRrChange(t2p1Stats.rr, t2p2Stats.rr, t1p1Stats.rr, t1p2Stats.rr, team2Sets, totalSets, pointDiff, t2p1Info.kOverride, t2p1Info.isInitialPlacement), t2p1Info.noLoss)
-    const t2p2Delta = applyNoLoss(calculateRrChange(t2p2Stats.rr, t2p1Stats.rr, t1p1Stats.rr, t1p2Stats.rr, team2Sets, totalSets, pointDiff, t2p2Info.kOverride, t2p2Info.isInitialPlacement), t2p2Info.noLoss)
+    // Pre-average opponent ratings to match new calculateRrChange signature
+    const t1AvgRr = (t1p1Stats.rr + t1p2Stats.rr) / 2
+    const t2AvgRr = (t2p1Stats.rr + t2p2Stats.rr) / 2
+    const actualT1 = team1Sets / totalSets
+    const actualT2 = team2Sets / totalSets
+
+    const t1p1Delta = applyNoLoss(calculateRrChange(t1p1Stats.rr, t2AvgRr, actualT1, pointDiff, rrConfig, t1p1Info.kOverride), t1p1Info.noLoss)
+    const t1p2Delta = applyNoLoss(calculateRrChange(t1p2Stats.rr, t2AvgRr, actualT1, pointDiff, rrConfig, t1p2Info.kOverride), t1p2Info.noLoss)
+    const t2p1Delta = applyNoLoss(calculateRrChange(t2p1Stats.rr, t1AvgRr, actualT2, pointDiff, rrConfig, t2p1Info.kOverride), t2p1Info.noLoss)
+    const t2p2Delta = applyNoLoss(calculateRrChange(t2p2Stats.rr, t1AvgRr, actualT2, pointDiff, rrConfig, t2p2Info.kOverride), t2p2Info.noLoss)
 
     const updates = [
       { stats: t1p1Stats, delta: t1p1Delta, won: team1Won,  lifetime: t1p1Lifetime },
@@ -176,7 +182,7 @@ async function main() {
 
     for (const { stats, delta, won, lifetime } of updates) {
       let newRr = Math.max(0, stats.rr + delta)
-      if (lifetime < PLACEMENT_GAMES) newRr = Math.min(newRr, PLACEMENT_RR_CAP)
+      if (lifetime < PLACEMENT_GAMES) newRr = Math.min(newRr, DEFAULT_PLACEMENT_RR_CAP)
 
       const newStats = {
         ...stats,
@@ -202,9 +208,7 @@ async function main() {
         rrAfter: newRr,
       })
 
-      // Update cache with new state
       statsCache.set(`${stats.userId}:${seasonId}`, newStats)
-
       incrementLifetimeGames(stats.userId)
     }
 
