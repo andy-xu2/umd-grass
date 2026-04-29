@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users, List, Medal } from 'lucide-react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users, List, ChartNoAxesColumn, Volleyball } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
@@ -16,11 +16,11 @@ const ADMIN_IDS = [
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/profile', label: 'Profile', icon: User },
-  { href: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+  { href: '/leaderboard', label: 'Leaderboard', icon: ChartNoAxesColumn },
   { href: '/players', label: 'Players', icon: Users },
   { href: '/submit-match', label: 'Submit Match', icon: PlusCircle },
   { href: '/queue', label: 'Queue', icon: List},
-  { href: '/tournament', label: 'Tournament', icon: Medal }
+  { href: '/tournament', label: 'Tournament', icon: Trophy }
 
 ]
 
@@ -58,7 +58,7 @@ export function Navbar() {
         <div className="flex h-16 items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-              <Trophy className="h-5 w-5 text-primary-foreground" />
+              <Volleyball className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="hidden text-lg font-bold tracking-tight sm:block">
               UMD Grass Rankings
