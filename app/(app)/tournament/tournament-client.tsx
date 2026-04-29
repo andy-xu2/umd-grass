@@ -46,6 +46,7 @@ type Game = {
   setScores: SetScore[]
   liveScore: LiveScore | null
   orderIndex: number
+  scoredBy: string | null
 }
 
 type Standing = {
@@ -94,8 +95,7 @@ const workTeamByOrder: Record<number, number> = {
   6: 3,
 }
 
-export default function TournamentPage() {
-  const [division, setDivision] = useState<Division>('AA')
+export default function TournamentPage({ currentUserId }: { currentUserId: string | null }) {  const [division, setDivision] = useState<Division>('AA')
   const [view, setView] = useState<View>('pool')
   const [pools, setPools] = useState<Pool[]>([])
   const [teams, setTeams] = useState<Team[]>([])
@@ -225,7 +225,7 @@ export default function TournamentPage() {
     const standingByTeam = new Map(standings.map(s => [s.team.id, s]))
 
     for (const game of getPoolGames(poolId)) {
-      if (game.status !== 'complete') continue
+      if (game.status === 'pending') continue
 
       const team1 = standingByTeam.get(game.team1Id)
       const team2 = standingByTeam.get(game.team2Id)
@@ -393,25 +393,45 @@ export default function TournamentPage() {
   }
 
   async function completeGame(game: Game) {
-    if (!game.liveScore) return
+      if (!game.liveScore) return
 
     if (game.liveScore.team1 === game.liveScore.team2) {
-      alert('Score cannot be tied.')
-      return
+        alert('Score cannot be tied.')
+        return
     }
 
     setIsUpdating(true)
 
-    const res = await fetch(`/api/tournament/games/${game.id}/score`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(game.liveScore),
-    })
+    const completedSets = [...(game.setScores ?? []), game.liveScore]
+    const TOTAL_SETS = 2 // pool play is always 2 sets
 
-    if (res.ok) {
-      await loadTournament()
+    if (completedSets.length < TOTAL_SETS) {
+        // Save the set result but keep the game live, reset score for next set
+        await fetch(`/api/tournament/games/${game.id}/admin-score`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            setScores: completedSets,
+            status: 'live',
+        }),
+        })
+
+        // Reset live score for next set
+        await fetch(`/api/tournament/games/${game.id}/live`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ team1: 0, team2: 0 }),
+        })
+    } else {
+        // All sets done — mark complete
+        await fetch(`/api/tournament/games/${game.id}/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(game.liveScore),
+        })
     }
 
+    await loadTournament()
     setIsUpdating(false)
   }
 
@@ -502,79 +522,70 @@ export default function TournamentPage() {
 
   function LiveScorer({ game }: { game: Game }) {
     const score = game.liveScore ?? { team1: 0, team2: 0 }
+    const isScorer = currentUserId && game.scoredBy === currentUserId
 
     return (
-      <div
+        <div
         className="space-y-3 rounded-lg border bg-secondary/20 p-3"
         onClick={event => event.stopPropagation()}
-      >
+        >
         <div className="flex items-center justify-between">
-          <div>
+            <div>
             <p className="text-xs font-medium text-muted-foreground">Current</p>
             <p className="font-semibold">
-              {getTeamName(game.team1Id)} vs {getTeamName(game.team2Id)}
+                {getTeamName(game.team1Id)} vs {getTeamName(game.team2Id)}
             </p>
-          </div>
-          <Badge>Live</Badge>
+            </div>
+            <Badge>Live</Badge>
         </div>
 
         {(['team1', 'team2'] as const).map(key => (
-          <div key={key} className="flex items-center justify-between rounded-md bg-background p-2">
+            <div key={key} className="flex items-center justify-between rounded-md bg-background p-2">
             <span className="text-sm font-medium">
-              {key === 'team1' ? getTeamName(game.team1Id) : getTeamName(game.team2Id)}
+                {key === 'team1' ? getTeamName(game.team1Id) : getTeamName(game.team2Id)}
             </span>
 
             <div className="flex items-center gap-2">
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={event => {
-                  event.stopPropagation()
-                  updateLiveScore(game, { ...score, [key]: score[key] - 1 })
-                }}
-              >
-                <Minus className="h-4 w-4" />
-              </Button>
-
-              <span className="w-8 text-center text-lg font-bold">{score[key]}</span>
-
-              <Button
-                size="icon"
-                variant="outline"
-                onClick={event => {
-                  event.stopPropagation()
-                  updateLiveScore(game, { ...score, [key]: score[key] + 1 })
-                }}
-              >
-                <Plus className="h-4 w-4" />
-              </Button>
+                {isScorer ? (
+                <>
+                    <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => updateLiveScore(game, { ...score, [key]: score[key] - 1 })}
+                    >
+                    <Minus className="h-4 w-4" />
+                    </Button>
+                    <span className="w-8 text-center text-lg font-bold">{score[key]}</span>
+                    <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => updateLiveScore(game, { ...score, [key]: score[key] + 1 })}
+                    >
+                    <Plus className="h-4 w-4" />
+                    </Button>
+                </>
+                ) : (
+                <span className="w-8 text-center text-lg font-bold">{score[key]}</span>
+                )}
             </div>
-          </div>
+            </div>
         ))}
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant="outline"
-            disabled={isUpdating}
-            onClick={event => {
-              event.stopPropagation()
-              cancelLiveGame(game)
-            }}
-          >
-            Cancel
-          </Button>
-
-          <Button
-            disabled={isUpdating}
-            onClick={event => {
-              event.stopPropagation()
-              completeGame(game)
-            }}
-          >
-            Complete Set
-          </Button>
+        {isScorer ? (
+            <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" onClick={() => cancelLiveGame(game)} disabled={isUpdating}>
+                Cancel
+            </Button>
+            <Button onClick={() => completeGame(game)} disabled={isUpdating}>
+                Complete Set {(game.setScores?.length ?? 0) + 1}
+            </Button>
+            </div>
+        ) : (
+            <p className="text-xs text-center text-muted-foreground">
+            Scoring in progress by another user
+            </p>
+        )}
         </div>
-      </div>
     )
   }
 
