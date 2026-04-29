@@ -288,10 +288,11 @@ export default function TournamentAdminClient() {
                       variant="outline"
                       onClick={() => {
                         setEditingGameId(game.id)
-                        setSet1t1(String(game.setScores?.[0]?.team1 ?? ''))
-                        setSet1t2(String(game.setScores?.[0]?.team2 ?? ''))
-                        setSet2t1(String(game.setScores?.[1]?.team1 ?? ''))
-                        setSet2t2(String(game.setScores?.[1]?.team2 ?? ''))
+                        // pool game edit button
+                        setSet1t1(game.setScores?.[0]?.team1 != null ? String(game.setScores[0].team1) : '')
+                        setSet1t2(game.setScores?.[0]?.team2 != null ? String(game.setScores[0].team2) : '')
+                        setSet2t1(game.setScores?.[1]?.team1 != null ? String(game.setScores[1].team1) : '')
+                        setSet2t2(game.setScores?.[1]?.team2 != null ? String(game.setScores[1].team2) : '')
                       }}
                     >
                       Edit Score
@@ -391,12 +392,13 @@ export default function TournamentAdminClient() {
                   size="sm"
                   onClick={() => {
                     setEditingPlayoffGameId(game.id)
-                    setPlayoffSet1Team1(String(game.setScores?.[0]?.team1 ?? ''))
-                    setPlayoffSet1Team2(String(game.setScores?.[0]?.team2 ?? ''))
-                    setPlayoffSet2Team1(String(game.setScores?.[1]?.team1 ?? ''))
-                    setPlayoffSet2Team2(String(game.setScores?.[1]?.team2 ?? ''))
-                    setPlayoffSet3Team1(String(game.setScores?.[2]?.team1 ?? ''))
-                    setPlayoffSet3Team2(String(game.setScores?.[2]?.team2 ?? ''))
+                    // playoff game edit button
+                    setPlayoffSet1Team1(game.setScores?.[0]?.team1 != null ? String(game.setScores[0].team1) : '')
+                    setPlayoffSet1Team2(game.setScores?.[0]?.team2 != null ? String(game.setScores[0].team2) : '')
+                    setPlayoffSet2Team1(game.setScores?.[1]?.team1 != null ? String(game.setScores[1].team1) : '')
+                    setPlayoffSet2Team2(game.setScores?.[1]?.team2 != null ? String(game.setScores[1].team2) : '')
+                    setPlayoffSet3Team1(game.setScores?.[2]?.team1 != null ? String(game.setScores[2].team1) : '')
+                    setPlayoffSet3Team2(game.setScores?.[2]?.team2 != null ? String(game.setScores[2].team2) : '')
                   }}
                 >
                   Edit Score
