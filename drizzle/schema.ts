@@ -127,3 +127,80 @@ export const courtQueueEntries = pgTable('court_queue_entries', {
   position: integer('position').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
+
+// ─── Tournament ───────────────────────────────────────────────────────────────
+
+export const tournamentDivisionEnum = pgEnum('tournament_division', ['AA', 'BB'])
+export const tournamentGameStatusEnum = pgEnum('tournament_game_status', ['pending', 'live', 'complete'])
+
+export const tournaments = pgTable('tournaments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export const tournamentPools = pgTable('tournament_pools', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  division: tournamentDivisionEnum('division').notNull(),
+  name: text('name').notNull(), // "Pool 1", "Pool 2", etc.
+})
+
+export const tournamentTeams = pgTable('tournament_teams', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  poolId: uuid('pool_id').notNull().references(() => tournamentPools.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+})
+
+export const tournamentGames = pgTable('tournament_games', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  poolId: uuid('pool_id').notNull().references(() => tournamentPools.id, { onDelete: 'cascade' }),
+  team1Id: uuid('team1_id').notNull().references(() => tournamentTeams.id),
+  team2Id: uuid('team2_id').notNull().references(() => tournamentTeams.id),
+  status: tournamentGameStatusEnum('status').notNull().default('pending'),
+  setScores: jsonb('set_scores').$type<{ team1: number; team2: number }[]>().default([]),
+  liveScore: jsonb('live_score').$type<{ team1: number; team2: number } | null>(),
+  orderIndex: integer('order_index').notNull(), // controls game queue order
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+export type TournamentSetScore = {
+  team1: number
+  team2: number
+}
+
+export type TournamentLiveScore = {
+  team1: number
+  team2: number
+}
+
+export const tournamentPlayoffGames = pgTable('tournament_playoff_games', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  tournamentId: uuid('tournament_id')
+    .notNull()
+    .references(() => tournaments.id, { onDelete: 'cascade' }),
+
+  division: tournamentDivisionEnum('division').notNull(),
+
+  round: text('round').notNull(), // play-in, quarterfinal, semifinal, final
+  label: text('label').notNull(),
+
+  team1Id: uuid('team1_id').references(() => tournamentTeams.id),
+  team2Id: uuid('team2_id').references(() => tournamentTeams.id),
+
+  team1Source: text('team1_source'),
+  team2Source: text('team2_source'),
+
+  status: tournamentGameStatusEnum('status').notNull().default('pending'),
+
+  setScores: jsonb('set_scores')
+    .$type<TournamentSetScore[]>()
+    .default([]),
+
+  liveScore: jsonb('live_score')
+    .$type<TournamentLiveScore | null>(),
+
+  orderIndex: integer('order_index').notNull(),
+
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
