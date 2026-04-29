@@ -44,11 +44,13 @@ export function Navbar() {
       setIsAdmin(ADMIN_IDS.includes(user.id))
 
       // tournament admin (from DB)
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('users')
         .select('is_tournament_admin')
         .eq('id', user.id)
         .single()
+
+      //onsole.log('full user row:', { data, error })
 
       setIsTournamentAdmin(data?.is_tournament_admin === true)
     }
