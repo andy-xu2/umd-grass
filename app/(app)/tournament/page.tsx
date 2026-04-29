@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase-server'
-import { isAdmin } from '@/lib/utils'
+import { canManageTournament } from '@/lib/tournament-admin'
 import TournamentClient from './tournament-client'
 
 export default async function TournamentPage() {
@@ -11,7 +11,13 @@ export default async function TournamentPage() {
     error,
   } = await supabase.auth.getUser()
 
-  if (error || !user || !isAdmin(user.id)) {
+  if (error || !user) {
+    redirect('/')
+  }
+
+  const allowed = await canManageTournament(user.id)
+
+  if (!allowed) {
     redirect('/')
   }
 
