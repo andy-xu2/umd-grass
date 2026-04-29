@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users, List, ChartNoAxesColumn, Volleyball } from 'lucide-react'
+import { LayoutDashboard, Trophy, PlusCircle, User, Menu, X, LogOut, ShieldAlert, Users, List, ChartNoAxesColumn, Volleyball, CircleStar } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase-browser'
@@ -29,14 +29,31 @@ export function Navbar() {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isTournamentAdmin, setIsTournamentAdmin] = useState(false)
   const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
-    if (ADMIN_IDS.length === 0) return
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setIsAdmin(!!user && ADMIN_IDS.includes(user.id))
-    })
+
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      if (!user) return
+
+      // normal admin
+      setIsAdmin(ADMIN_IDS.includes(user.id))
+
+      // tournament admin (from DB)
+      const { data } = await supabase
+        .from('users')
+        .select('is_tournament_admin')
+        .eq('id', user.id)
+        .single()
+
+      setIsTournamentAdmin(data?.is_tournament_admin === true)
+    }
+
+    checkUser()
   }, [])
 
   useEffect(() => {
@@ -93,6 +110,21 @@ export function Navbar() {
                 </Link>
               )
             })}
+            {(isAdmin || isTournamentAdmin) && (
+              <Link
+                href="/tournament-admin"
+                prefetch={true}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+                  pathname === '/tournament-admin'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                )}
+              >
+                <CircleStar className="h-4 w-4" />
+                Tournament Admin
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 href="/admin"
@@ -160,6 +192,21 @@ export function Navbar() {
                   </Link>
                 )
               })}
+              {(isAdmin || isTournamentAdmin) && (
+                <Link
+                  href="/tournament-admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
+                    pathname === '/tournament-admin'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  )}
+                >
+                  <CircleStar className="h-5 w-5" />
+                  Tournament Admin
+                </Link>
+              )}
               {isAdmin && (
                 <Link
                   href="/admin"
