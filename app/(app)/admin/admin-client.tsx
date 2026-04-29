@@ -130,6 +130,23 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [playerSearch, setPlayerSearch] = useState('')
   const [matchSearch, setMatchSearch] = useState('')
 
+  const [tournamentDivision, setTournamentDivision] = useState<'AA' | 'BB'>('AA')
+  const [tournamentPools, setTournamentPools] = useState<any[]>([])
+  const [tournamentTeams, setTournamentTeams] = useState<any[]>([])
+  const [tournamentGames, setTournamentGames] = useState<any[]>([])
+  const [selectedTournamentPoolId, setSelectedTournamentPoolId] = useState('')
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
+  const [editingTeamName, setEditingTeamName] = useState('')
+  const [editingGameId, setEditingGameId] = useState<string | null>(null)
+  const [editSet1Team1, setEditSet1Team1] = useState('')
+  const [editSet1Team2, setEditSet1Team2] = useState('')
+  const [editSet2Team1, setEditSet2Team1] = useState('')
+  const [editSet2Team2, setEditSet2Team2] = useState('')
+
+  useEffect(() => {
+    fetchTournamentData(tournamentDivision)
+  }, [tournamentDivision])
+
   const filteredUsers = useMemo(() => {
     const sorted = [...usersForSeason].sort((a, b) =>
       (a.name ?? '').localeCompare(b.name ?? '')
@@ -510,6 +527,129 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     }
 
     setIsSavingPlayedAt(false)
+  }
+
+  async function fetchTournamentData(division = tournamentDivision) {
+    const res = await fetch(
+      `/api/tournament/pools?division=${division}&tournamentId=00000000-0000-0000-0000-000000000001`,
+    )
+
+    if (!res.ok) return
+
+    const data = await res.json()
+    setTournamentPools(data.pools ?? [])
+    setTournamentTeams(data.teams ?? [])
+    setTournamentGames(data.games ?? [])
+
+    if (!selectedTournamentPoolId && data.pools?.length) {
+      setSelectedTournamentPoolId(data.pools[0].id)
+    }
+  }
+
+  function getTournamentTeamName(id: string) {
+    return tournamentTeams.find(t => t.id === id)?.name ?? 'Unknown'
+  }
+
+  function getPoolTeams(poolId: string) {
+    return tournamentTeams.filter(t => t.poolId === poolId)
+  }
+
+  function getPoolGames(poolId: string) {
+    return tournamentGames
+      .filter(g => g.poolId === poolId)
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+  }
+
+  async function saveTournamentTeamName() {
+    if (!editingTeamId || !editingTeamName.trim()) return
+
+    const res = await fetch(`/api/tournament/teams/${editingTeamId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editingTeamName }),
+    })
+
+    if (res.ok) {
+      setEditingTeamId(null)
+      setEditingTeamName('')
+      await fetchTournamentData()
+      toast.success('Team updated')
+    } else {
+      toast.error('Failed to update team')
+    }
+  }
+
+  async function saveTournamentGameScore() {
+    if (!editingGameId) return
+
+    const setScores = []
+
+    if (editSet1Team1 !== '' && editSet1Team2 !== '') {
+      setScores.push({
+        team1: Number(editSet1Team1),
+        team2: Number(editSet1Team2),
+      })
+    }
+
+    if (editSet2Team1 !== '' && editSet2Team2 !== '') {
+      setScores.push({
+        team1: Number(editSet2Team1),
+        team2: Number(editSet2Team2),
+      })
+    }
+
+    const res = await fetch(`/api/tournament/games/${editingGameId}/admin-score`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        setScores,
+        status: setScores.length > 0 ? 'complete' : 'pending',
+      }),
+    })
+
+    if (res.ok) {
+      setEditingGameId(null)
+      setEditSet1Team1('')
+      setEditSet1Team2('')
+      setEditSet2Team1('')
+      setEditSet2Team2('')
+      await fetchTournamentData()
+      toast.success('Game score updated')
+    } else {
+      toast.error('Failed to update score')
+    }
+  }
+
+  async function makeTournamentGameCurrent(gameId: string) {
+    const res = await fetch(`/api/tournament/games/${gameId}/make-current`, {
+      method: 'POST',
+    })
+
+    if (res.ok) {
+      await fetchTournamentData()
+      toast.success('Game set as current')
+    } else {
+      toast.error('Failed to set current game')
+    }
+  }
+  
+  async function resetTournamentGame(gameId: string) {
+    const confirmed = window.confirm(
+      'Reset this game? This will clear its score and make it pending.',
+    )
+
+    if (!confirmed) return
+
+    const res = await fetch(`/api/tournament/games/${gameId}/reset`, {
+      method: 'POST',
+    })
+
+    if (res.ok) {
+      await fetchTournamentData()
+      toast.success('Game reset')
+    } else {
+      toast.error('Failed to reset game')
+    }
   }
 
   return (
@@ -1044,6 +1184,201 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
                     </Table>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Tournament Management</CardTitle>
+          <CardDescription>Edit pool teams and game scores.</CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button
+              variant={tournamentDivision === 'AA' ? 'default' : 'outline'}
+              onClick={() => {
+                setTournamentDivision('AA')
+                setSelectedTournamentPoolId('')
+              }}
+            >
+              AA
+            </Button>
+
+            <Button
+              variant={tournamentDivision === 'BB' ? 'default' : 'outline'}
+              onClick={() => {
+                setTournamentDivision('BB')
+                setSelectedTournamentPoolId('')
+              }}
+            >
+              BB
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {tournamentPools.map(pool => (
+              <Button
+                key={pool.id}
+                variant={selectedTournamentPoolId === pool.id ? 'default' : 'outline'}
+                onClick={() => setSelectedTournamentPoolId(pool.id)}
+              >
+                {pool.name}
+              </Button>
+            ))}
+          </div>
+
+          {selectedTournamentPoolId && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-3">
+                <h3 className="font-semibold">Teams</h3>
+
+                {getPoolTeams(selectedTournamentPoolId).map(team => (
+                  <div
+                    key={team.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    {editingTeamId === team.id ? (
+                      <div className="flex w-full gap-2">
+                        <Input
+                          value={editingTeamName}
+                          onChange={e => setEditingTeamName(e.target.value)}
+                        />
+                        <Button onClick={saveTournamentTeamName}>Save</Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditingTeamId(null)
+                            setEditingTeamName('')
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="font-medium">{team.name}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingTeamId(team.id)
+                            setEditingTeamName(team.name)
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold">Games</h3>
+
+                {getPoolGames(selectedTournamentPoolId).map(game => (
+                  <div key={game.id} className="space-y-3 rounded-lg border p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">
+                          Game {game.orderIndex}: {getTournamentTeamName(game.team1Id)} vs{' '}
+                          {getTournamentTeamName(game.team2Id)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Status: {game.status}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={game.status === 'live'}
+                          onClick={() => makeTournamentGameCurrent(game.id)}
+                        >
+                          Make Current
+                        </Button>
+
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setEditingGameId(game.id)
+                            setEditSet1Team1(String(game.setScores?.[0]?.team1 ?? ''))
+                            setEditSet1Team2(String(game.setScores?.[0]?.team2 ?? ''))
+                            setEditSet2Team1(String(game.setScores?.[1]?.team1 ?? ''))
+                            setEditSet2Team2(String(game.setScores?.[1]?.team2 ?? ''))
+                          }}
+                        >
+                          Edit Score
+                        </Button>
+
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => resetTournamentGame(game.id)}
+                        >
+                          Reset
+                        </Button>
+                      </div>
+                    </div>
+
+                    {editingGameId === game.id && (
+                      <div className="space-y-3 rounded-md bg-secondary/30 p-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Set 1 {getTournamentTeamName(game.team1Id)}</Label>
+                            <Input
+                              type="number"
+                              value={editSet1Team1}
+                              onChange={e => setEditSet1Team1(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Set 1 {getTournamentTeamName(game.team2Id)}</Label>
+                            <Input
+                              type="number"
+                              value={editSet1Team2}
+                              onChange={e => setEditSet1Team2(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Set 2 {getTournamentTeamName(game.team1Id)}</Label>
+                            <Input
+                              type="number"
+                              value={editSet2Team1}
+                              onChange={e => setEditSet2Team1(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label>Set 2 {getTournamentTeamName(game.team2Id)}</Label>
+                            <Input
+                              type="number"
+                              value={editSet2Team2}
+                              onChange={e => setEditSet2Team2(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button onClick={saveTournamentGameScore}>
+                            Save Score
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => setEditingGameId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}
