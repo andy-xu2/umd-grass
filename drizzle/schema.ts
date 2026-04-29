@@ -34,6 +34,7 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   isDeleted: boolean('is_deleted').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  isTournamentAdmin: boolean('is_tournament_admin').notNull().default(false),
 })
 
 /**
