@@ -37,6 +37,8 @@ export async function PATCH(
     if (
       typeof set.team1 !== 'number' ||
       typeof set.team2 !== 'number' ||
+      isNaN(set.team1) ||
+      isNaN(set.team2) ||
       set.team1 < 0 ||
       set.team2 < 0 ||
       set.team1 === set.team2

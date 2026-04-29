@@ -40,16 +40,18 @@ export async function PATCH(
 
   for (const set of setScores) {
     if (
-      typeof set.team1 !== 'number' ||
-      typeof set.team2 !== 'number' ||
-      set.team1 < 0 ||
-      set.team2 < 0 ||
-      set.team1 === set.team2
+        typeof set.team1 !== 'number' ||
+        typeof set.team2 !== 'number' ||
+        isNaN(set.team1) ||
+        isNaN(set.team2) ||
+        set.team1 < 0 ||
+        set.team2 < 0 ||
+        set.team1 === set.team2
     ) {
-      return NextResponse.json(
+        return NextResponse.json(
         { error: 'Each set must have non-negative, non-tied scores' },
         { status: 400 },
-      )
+        )
     }
   }
 
