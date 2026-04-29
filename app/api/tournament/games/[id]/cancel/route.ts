@@ -27,6 +27,7 @@ export async function POST(
     .set({
       status: 'pending',
       liveScore: null,
+      scoredBy: null,
     })
     .where(eq(tournamentGames.id, id))
 
