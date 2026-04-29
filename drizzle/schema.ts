@@ -163,6 +163,7 @@ export const tournamentGames = pgTable('tournament_games', {
   liveScore: jsonb('live_score').$type<{ team1: number; team2: number } | null>(),
   orderIndex: integer('order_index').notNull(), // controls game queue order
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  scoredBy: uuid('scored_by').references(() => users.id),
 })
 
 export type TournamentSetScore = {
