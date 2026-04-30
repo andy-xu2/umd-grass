@@ -921,22 +921,28 @@ export default function TournamentPage({ currentUserId }: { currentUserId: strin
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    {standings.map((standing, index) => (
-                      <div
-                        key={standing.team.id}
-                        className="grid grid-cols-[32px_1fr_70px_70px] items-center gap-2 rounded-md border px-3 py-2 text-sm"
-                      >
-                        <span className="font-semibold">{index + 1}</span>
-                        <span className="font-medium">{standing.team.name}</span>
-                        <span>{standing.setsWon}-{standing.setsLost}</span>
-                        <span>
-                          {standing.pointDiff > 0 ? '+' : ''}
-                          {standing.pointDiff}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-[32px_1fr_70px_70px] items-center gap-2 px-3 text-xs text-muted-foreground">
+                            <span />
+                            <span />
+                            <span>W–L</span>
+                            <span>Diff</span>
+                        </div>
+                        {standings.map((standing, index) => (
+                            <div
+                            key={standing.team.id}
+                            className="grid grid-cols-[32px_1fr_70px_70px] items-center gap-2 rounded-md border px-3 py-2 text-sm"
+                            >
+                            <span className="font-semibold">{index + 1}</span>
+                            <span className="font-medium">{standing.team.name}</span>
+                            <span>{standing.setsWon}-{standing.setsLost}</span>
+                            <span>
+                                {standing.pointDiff > 0 ? '+' : ''}
+                                {standing.pointDiff}
+                            </span>
+                            </div>
+                        ))}
+                    </div>
 
                   <div className="grid gap-3 md:grid-cols-2">
                     {current ? (
