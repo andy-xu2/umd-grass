@@ -33,9 +33,7 @@ export async function PATCH(
 
   const isScorer = game.scoredBy === user.id
 
-  if (!isScorer) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  
 
   await db
     .update(tournamentGames)
