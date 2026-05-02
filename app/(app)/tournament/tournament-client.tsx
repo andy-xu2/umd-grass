@@ -393,44 +393,62 @@ export default function TournamentPage({ currentUserId }: { currentUserId: strin
   }
 
   async function completeGame(game: Game) {
-      if (!game.liveScore) return
-
+    if (!game.liveScore) return
+  
     if (game.liveScore.team1 === game.liveScore.team2) {
-        alert('Score cannot be tied.')
-        return
+      alert('Score cannot be tied.')
+      return
     }
-
+  
     setIsUpdating(true)
-
+  
     const completedSets = [...(game.setScores ?? []), game.liveScore]
-    const TOTAL_SETS = 2 // pool play is always 2 sets
-
+    const TOTAL_SETS = 2
+  
     if (completedSets.length < TOTAL_SETS) {
-        // Save the set result but keep the game live, reset score for next set
-        await fetch(`/api/tournament/games/${game.id}/admin-score`, {
+      const res = await fetch(`/api/tournament/games/${game.id}/admin-score`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            setScores: completedSets,
-            status: 'live',
+          setScores: completedSets,
+          status: 'live',
         }),
-        })
-
-        // Reset live score for next set
-        await fetch(`/api/tournament/games/${game.id}/live`, {
+      })
+  
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Failed to save set')
+        setIsUpdating(false)
+        return
+      }
+  
+      const resetRes = await fetch(`/api/tournament/games/${game.id}/live`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team1: 0, team2: 0 }),
-        })
+      })
+  
+      if (!resetRes.ok) {
+        const data = await resetRes.json()
+        alert(data.error ?? 'Failed to reset live score')
+        setIsUpdating(false)
+        return
+      }
     } else {
-        // All sets done — mark complete
-        await fetch(`/api/tournament/games/${game.id}/score`, {
+      const res = await fetch(`/api/tournament/games/${game.id}/score`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(game.liveScore),
-        })
+      })
+  
+      if (!res.ok) {
+        const data = await res.json()
+        alert(data.error ?? 'Failed to complete game')
+        setIsUpdating(false)
+        return
+      }
     }
-
+  
     await loadTournament()
     setIsUpdating(false)
   }
