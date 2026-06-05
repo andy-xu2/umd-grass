@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
-import { db } from '@/lib/db'
-import { matches } from '@/drizzle/schema'
-import { eq, and } from 'drizzle-orm'
-import { isAdmin } from '@/lib/utils'
-import { recalculateSeasonRr } from '@/lib/recalculate-rr'
-import { applyConfirmedMatchIncremental } from '@/lib/apply-confirmed-match'
-import { isMostRecentConfirmedMatch } from '@/lib/is-most-recent-match'
+import { revalidateTag } from 'next/cache'
+import {
+  MatchVerificationError,
+  verifyMatch,
+  type VerificationAction,
+} from '@/lib/match-verification'
 
 export async function PATCH(
   request: Request,
@@ -33,69 +32,21 @@ export async function PATCH(
     )
   }
 
-  const [match] = await db.select().from(matches).where(eq(matches.id, id))
-
-  if (!match) {
-    return NextResponse.json({ error: 'Match not found' }, { status: 404 })
-  }
-
-  const admin = isAdmin(user.id)
-
-  if (
-    !admin &&
-    match.team2Player1Id !== user.id &&
-    match.team2Player2Id !== user.id
-  ) {
-    return NextResponse.json(
-      { error: 'Only the opposing team can verify this match' },
-      { status: 403 },
-    )
-  }
-
-  if (match.status !== 'PENDING') {
-    return NextResponse.json({ error: 'Match is not pending' }, { status: 400 })
-  }
-
-  if (action === 'reject') {
-    await db
-      .update(matches)
-      .set({ status: 'REJECTED' })
-      .where(eq(matches.id, id))
-
-    return NextResponse.json({ ok: true })
-  }
-
-  const [claimed] = await db
-    .update(matches)
-    .set({
-      status: 'CONFIRMED',
-      verifiedBy: user.id,
-      verifiedAt: new Date(),
-    })
-    .where(and(eq(matches.id, id), eq(matches.status, 'PENDING')))
-    .returning({
-      id: matches.id,
-      seasonId: matches.seasonId,
-    })
-
-  if (!claimed) {
-    return NextResponse.json({ error: 'Match was already processed' }, { status: 409 })
-  }
-
   try {
-    const isNewest = await isMostRecentConfirmedMatch(claimed.id)
+    const result = await verifyMatch(id, user.id, action as VerificationAction)
 
-    if (isNewest) {
-      await applyConfirmedMatchIncremental(claimed.id)
-    } else {
-      await recalculateSeasonRr(claimed.seasonId)
-    }
+    revalidateTag(`leaderboard-${result.seasonId}`, 'max')
+    revalidateTag('leaderboard-lifetime', 'max')
 
     return NextResponse.json({
       ok: true,
-      recomputed: !isNewest,
+      recomputed: result.recomputed,
     })
   } catch (error) {
+    if (error instanceof MatchVerificationError) {
+      return NextResponse.json({ error: error.message }, { status: error.status })
+    }
+
     console.error('verify RR update failed:', error)
 
     return NextResponse.json(

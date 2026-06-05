@@ -94,8 +94,13 @@ export default function SubmitMatchPage() {
   const [sets, setSets] = useState<SetScore[]>([emptySet()])
 
   const [playedDate, setPlayedDate] = useState('')
+  const [isDateFocused, setIsDateFocused] = useState(false)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [verifyingMatch, setVerifyingMatch] = useState<{
+    id: string
+    action: 'confirm' | 'reject'
+  } | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -221,22 +226,22 @@ export default function SubmitMatchPage() {
   }
 
   const handleVerify = async (matchId: string, action: 'confirm' | 'reject') => {
-    // Optimistically remove the match immediately so the UI responds instantly
-    const previous = myMatches
-    setMyMatches(prev => prev.filter(m => m.id !== matchId))
+    if (verifyingMatch) return
 
-    const res = await fetch(`/api/matches/${matchId}/verify`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    })
+    setVerifyingMatch({ id: matchId, action })
 
-    if (res.ok) {
-      // Refresh in background to sync any RR/stat changes
-      loadData()
-    } else {
-      // Restore on failure
-      setMyMatches(previous)
+    try {
+      const res = await fetch(`/api/matches/${matchId}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+
+      if (res.ok) {
+        await loadData()
+      }
+    } finally {
+      setVerifyingMatch(null)
     }
   }
 
@@ -427,13 +432,23 @@ export default function SubmitMatchPage() {
                       {/* Date */}
                       <div className="space-y-2">
                         <Label htmlFor="played-date">Date</Label>
-                        <Input
-                          id="played-date"
-                          type="date"
-                          value={playedDate}
-                          onChange={e => setPlayedDate(e.target.value)}
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            id="played-date"
+                            type="date"
+                            value={playedDate}
+                            onChange={e => setPlayedDate(e.target.value)}
+                            onFocus={() => setIsDateFocused(true)}
+                            onBlur={() => setIsDateFocused(false)}
+                            className={!playedDate && !isDateFocused ? 'text-transparent' : undefined}
+                            required
+                          />
+                          {!playedDate && !isDateFocused && (
+                            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                              Select match date
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Time (3 dropdowns) */}
@@ -674,6 +689,7 @@ export default function SubmitMatchPage() {
                   match={match}
                   onConfirm={handleConfirm}
                   onReject={handleReject}
+                  pendingAction={verifyingMatch?.id === match.id ? verifyingMatch.action : null}
                 />
               ))
             ) : (

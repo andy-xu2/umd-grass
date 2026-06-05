@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { Check, X, Clock } from 'lucide-react'
+import { Check, X, Clock, Loader2 } from 'lucide-react'
 import { getInitials } from '@/lib/utils'
 import type { MatchResponse } from '@/lib/types'
 
@@ -12,9 +12,11 @@ interface VerificationCardProps {
   match: MatchResponse
   onConfirm?: (matchId: string) => void
   onReject?: (matchId: string) => void
+  pendingAction?: 'confirm' | 'reject' | null
 }
 
-export function VerificationCard({ match, onConfirm, onReject }: VerificationCardProps) {
+export function VerificationCard({ match, onConfirm, onReject, pendingAction = null }: VerificationCardProps) {
+  const isPending = pendingAction !== null
   const submitterName =
     match.team1Player1.id === match.submittedBy
       ? match.team1Player1.name
@@ -93,16 +95,29 @@ export function VerificationCard({ match, onConfirm, onReject }: VerificationCar
         </div>
 
         <div className="mt-4 flex gap-2">
-          <Button className="flex-1 gap-2" onClick={() => onConfirm?.(match.id)}>
-            <Check className="h-4 w-4" />
+          <Button
+            className="flex-1 gap-2"
+            disabled={isPending}
+            onClick={() => onConfirm?.(match.id)}
+          >
+            {pendingAction === 'confirm' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}
             Confirm
           </Button>
           <Button
             variant="outline"
             className="flex-1 gap-2 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            disabled={isPending}
             onClick={() => onReject?.(match.id)}
           >
-            <X className="h-4 w-4" />
+            {pendingAction === 'reject' ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
             Reject
           </Button>
         </div>
