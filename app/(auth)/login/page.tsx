@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Trophy, Eye, EyeOff, Loader2, Info } from 'lucide-react'
+import { Volleyball, Eye, EyeOff, Loader2, Info } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
 import { toast } from 'sonner'
 
@@ -48,7 +48,7 @@ function LoginContent() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">
-            <Trophy className="h-8 w-8 text-primary-foreground" />
+            <Volleyball className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="mt-4 text-2xl font-bold">UMD Grass Rankings</h1>
           <p className="mt-1 text-sm text-muted-foreground">Competitive doubles volleyball</p>
