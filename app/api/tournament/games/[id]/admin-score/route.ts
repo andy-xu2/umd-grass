@@ -31,10 +31,6 @@ export async function PATCH(
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
   }
 
-  const isScorer = game.scoredBy === user.id
-
-  
-
   await db
     .update(tournamentGames)
     .set({

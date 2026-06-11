@@ -7,51 +7,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-
-const TOURNAMENT_ID = '00000000-0000-0000-0000-000000000001'
-
-type Division = 'AA' | 'BB'
-type GameStatus = 'pending' | 'live' | 'complete'
-
-type SetScore = {
-  team1: number
-  team2: number
-}
-
-type Pool = {
-  id: string
-  name: string
-}
-
-type Team = {
-  id: string
-  name: string
-  poolId: string
-}
-
-type Game = {
-  id: string
-  poolId: string
-  team1Id: string
-  team2Id: string
-  status: GameStatus
-  setScores: SetScore[]
-  orderIndex: number
-}
-
-type PlayoffGame = {
-  id: string
-  division: Division
-  round: string
-  label: string
-  team1Id: string | null
-  team2Id: string | null
-  team1Source: string | null
-  team2Source: string | null
-  status: GameStatus
-  setScores: SetScore[]
-  orderIndex: number
-}
+import {
+  TOURNAMENT_ID,
+  type TournamentDivision as Division,
+  type TournamentGame as Game,
+  type TournamentPlayoffGame as PlayoffGame,
+  type TournamentPool as Pool,
+  type TournamentSetScore as SetScore,
+  type TournamentTeam as Team,
+} from '@/lib/tournament-types'
 
 export default function TournamentAdminClient() {
   const [division, setDivision] = useState<Division>('AA')

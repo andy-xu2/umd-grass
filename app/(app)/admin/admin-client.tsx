@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef, useMemo, useEffect } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import {
   Card,
   CardContent,
@@ -98,7 +98,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(initialSeasonId)
   const [usersForSeason, setUsersForSeason] = useState<UserWithStats[]>(initialUsers)
   const [loadingUsers, setLoadingUsers] = useState(false)
-  const loadedSeasonId = useRef<string | null>(initialSeasonId)
 
   const [editUser, setEditUser] = useState<UserWithStats | null>(null)
   const [editRr, setEditRr] = useState('')
@@ -108,15 +107,12 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   const [renameName, setRenameName] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
 
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
-
   const [isRecalculating, setIsRecalculating] = useState(false)
   const [isRecalculatingRr, setIsRecalculatingRr] = useState(false)
 
   // Match management
   const [matches, setMatches] = useState<MatchResponse[]>([])
   const [loadingMatches, setLoadingMatches] = useState(false)
-  const [matchesLoaded, setMatchesLoaded] = useState<string | null>(null)
   const [deletingMatchId, setDeletingMatchId] = useState<string | null>(null)
   const [editScoreMatch, setEditScoreMatch] = useState<MatchResponse | null>(null)
   const [editScoreSets, setEditScoreSets] = useState<SetScore[]>([])
@@ -129,23 +125,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
 
   const [playerSearch, setPlayerSearch] = useState('')
   const [matchSearch, setMatchSearch] = useState('')
-
-  const [tournamentDivision, setTournamentDivision] = useState<'AA' | 'BB'>('AA')
-  const [tournamentPools, setTournamentPools] = useState<any[]>([])
-  const [tournamentTeams, setTournamentTeams] = useState<any[]>([])
-  const [tournamentGames, setTournamentGames] = useState<any[]>([])
-  const [selectedTournamentPoolId, setSelectedTournamentPoolId] = useState('')
-  const [editingTeamId, setEditingTeamId] = useState<string | null>(null)
-  const [editingTeamName, setEditingTeamName] = useState('')
-  const [editingGameId, setEditingGameId] = useState<string | null>(null)
-  const [editSet1Team1, setEditSet1Team1] = useState('')
-  const [editSet1Team2, setEditSet1Team2] = useState('')
-  const [editSet2Team1, setEditSet2Team1] = useState('')
-  const [editSet2Team2, setEditSet2Team2] = useState('')
-
-  useEffect(() => {
-    fetchTournamentData(tournamentDivision)
-  }, [tournamentDivision])
 
   const filteredUsers = useMemo(() => {
     const sorted = [...usersForSeason].sort((a, b) =>
@@ -194,7 +173,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     const res = await fetch(`/api/users?seasonId=${sid}`)
     if (res.ok) {
       setUsersForSeason(await res.json())
-      loadedSeasonId.current = sid
     }
 
     if (!opts?.silent) setLoadingUsers(false)
@@ -206,7 +184,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     const res = await fetch(`/api/admin/matches?seasonId=${sid}`)
     if (res.ok) {
       setMatches(await res.json())
-      setMatchesLoaded(sid)
     }
 
     if (!opts?.silent) setLoadingMatches(false)
@@ -215,12 +192,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
   useEffect(() => {
     if (initialSeasonId) fetchMatches(initialSeasonId)
   }, [initialSeasonId, fetchMatches])
-
-  function handleSeasonChange(sid: string) {
-    setSelectedSeasonId(sid)
-    if (sid !== loadedSeasonId.current) fetchUsers(sid)
-    if (sid !== matchesLoaded) fetchMatches(sid)
-  }
 
   async function handleCreateSeason() {
     if (!newSeasonName.trim()) return
@@ -279,19 +250,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
       toast.error(data.error ?? 'Failed to update RR')
     }
     setIsSavingRr(false)
-  }
-
-  async function handleDeleteUser(userId: string, userName: string) {
-    setDeletingUserId(userId)
-    const res = await fetch(`/api/users/${userId}`, { method: 'DELETE' })
-    if (res.ok) {
-      toast.success(`${userName} has been deleted`)
-      setUsersForSeason(prev => prev.filter(u => u.id !== userId))
-    } else {
-      const data = await res.json()
-      toast.error(data.error ?? 'Failed to delete user')
-    }
-    setDeletingUserId(null)
   }
 
   async function handleRename() {
@@ -529,129 +487,6 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
     setIsSavingPlayedAt(false)
   }
 
-  async function fetchTournamentData(division = tournamentDivision) {
-    const res = await fetch(
-      `/api/tournament/pools?division=${division}&tournamentId=00000000-0000-0000-0000-000000000001`,
-    )
-
-    if (!res.ok) return
-
-    const data = await res.json()
-    setTournamentPools(data.pools ?? [])
-    setTournamentTeams(data.teams ?? [])
-    setTournamentGames(data.games ?? [])
-
-    if (!selectedTournamentPoolId && data.pools?.length) {
-      setSelectedTournamentPoolId(data.pools[0].id)
-    }
-  }
-
-  function getTournamentTeamName(id: string) {
-    return tournamentTeams.find(t => t.id === id)?.name ?? 'Unknown'
-  }
-
-  function getPoolTeams(poolId: string) {
-    return tournamentTeams.filter(t => t.poolId === poolId)
-  }
-
-  function getPoolGames(poolId: string) {
-    return tournamentGames
-      .filter(g => g.poolId === poolId)
-      .sort((a, b) => a.orderIndex - b.orderIndex)
-  }
-
-  async function saveTournamentTeamName() {
-    if (!editingTeamId || !editingTeamName.trim()) return
-
-    const res = await fetch(`/api/tournament/teams/${editingTeamId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: editingTeamName }),
-    })
-
-    if (res.ok) {
-      setEditingTeamId(null)
-      setEditingTeamName('')
-      await fetchTournamentData()
-      toast.success('Team updated')
-    } else {
-      toast.error('Failed to update team')
-    }
-  }
-
-  async function saveTournamentGameScore() {
-    if (!editingGameId) return
-
-    const setScores = []
-
-    if (editSet1Team1 !== '' && editSet1Team2 !== '') {
-      setScores.push({
-        team1: Number(editSet1Team1),
-        team2: Number(editSet1Team2),
-      })
-    }
-
-    if (editSet2Team1 !== '' && editSet2Team2 !== '') {
-      setScores.push({
-        team1: Number(editSet2Team1),
-        team2: Number(editSet2Team2),
-      })
-    }
-
-    const res = await fetch(`/api/tournament/games/${editingGameId}/admin-score`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        setScores,
-        status: setScores.length > 0 ? 'complete' : 'pending',
-      }),
-    })
-
-    if (res.ok) {
-      setEditingGameId(null)
-      setEditSet1Team1('')
-      setEditSet1Team2('')
-      setEditSet2Team1('')
-      setEditSet2Team2('')
-      await fetchTournamentData()
-      toast.success('Game score updated')
-    } else {
-      toast.error('Failed to update score')
-    }
-  }
-
-  async function makeTournamentGameCurrent(gameId: string) {
-    const res = await fetch(`/api/tournament/games/${gameId}/make-current`, {
-      method: 'POST',
-    })
-
-    if (res.ok) {
-      await fetchTournamentData()
-      toast.success('Game set as current')
-    } else {
-      toast.error('Failed to set current game')
-    }
-  }
-  
-  async function resetTournamentGame(gameId: string) {
-    const confirmed = window.confirm(
-      'Reset this game? This will clear its score and make it pending.',
-    )
-
-    if (!confirmed) return
-
-    const res = await fetch(`/api/tournament/games/${gameId}/reset`, {
-      method: 'POST',
-    })
-
-    if (res.ok) {
-      await fetchTournamentData()
-      toast.success('Game reset')
-    } else {
-      toast.error('Failed to reset game')
-    }
-  }
-
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-3">
@@ -673,8 +508,8 @@ export default function AdminClient({ initialSeasons, initialSeasonId, initialUs
             Create New Season
           </CardTitle>
           <CardDescription>
-            Creating a season deactivates the current one and applies a 2-rank decay to all
-            players&apos; RR (–1000, floor 0; capped at 1500 if above 2500).
+            Creating a season deactivates the current one and carries forward 60% of each
+            player&apos;s RR.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

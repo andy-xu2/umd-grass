@@ -19,7 +19,6 @@ export async function GET(request: Request) {
     )
   }
 
-  // ✅ FIXED
   const pools = await db
     .select()
     .from(tournamentPools)

@@ -170,7 +170,7 @@ export function applyMatchDeltasInMemory(
 }
 
 /**
- * Exact same logic as the Python test:
+ * Applies the production match rules:
  * - team rating = average of two players
  * - expected = team-vs-team Elo expected
  * - per-player kOverride from placement state

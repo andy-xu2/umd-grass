@@ -4,7 +4,7 @@
 // Season creation:
 //  1. Deactivate the current active season (set isActive=false, endedAt=now)
 //  2. Collect every player's rr from the old season
-//  3. Apply progressive decay via applySeasonDecay() — higher ranks lose more
+//  3. Carry forward 60% of each player's previous RR
 //  4. Create the new season (isActive=true)
 //  5. Pre-seed season_stats rows with decayed RR
 
@@ -89,8 +89,7 @@ export async function POST(request: Request) {
     newSeasonId = newSeason.id
 
     if (prevStats.length > 0) {
-      // Apply progressive decay: higher-ranked players lose more RR than lower-ranked
-      // players, compressing the field at the start of each new season.
+      // Carry forward 60% of each player's RR into the new season.
       await tx.insert(seasonStats).values(
         prevStats.map(s => ({
           userId: s.userId,
