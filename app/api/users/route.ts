@@ -1,12 +1,12 @@
 // GET  /api/users            — list all users with stats for the active season
 // GET  /api/users?seasonId=  — list all users with stats for the given season
-// POST /api/users            — create a row in the public `users` table after TOTP enrollment
+// POST /api/users            — create a public user row after signup email verification
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import type { UserWithStats } from '@/lib/types'
 
 export async function GET(request: NextRequest) {

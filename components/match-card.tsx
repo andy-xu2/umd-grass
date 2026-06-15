@@ -45,20 +45,20 @@ export function MatchCard({ match, currentUserId, compact = false, isPlacement =
 
   if (compact) {
     return (
-      <div className="flex items-center justify-between rounded-lg bg-secondary/30 p-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-border/80 p-3 transition-colors hover:bg-secondary/35">
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold',
               isWin
-                ? 'bg-primary/20 text-primary'
-                : 'bg-destructive/20 text-destructive',
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300'
+                : 'bg-red-50 text-destructive dark:bg-primary/15',
             )}
           >
             {isWin ? 'W' : 'L'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">vs {opponents}</span>
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-sm font-medium">vs {opponents}</span>
             <span className="text-xs text-muted-foreground">
               {match.team1Sets}–{match.team2Sets}
               {match.setScores && match.setScores.length > 0 && (
@@ -75,8 +75,8 @@ export function MatchCard({ match, currentUserId, compact = false, isPlacement =
           ) : (
             <div
               className={cn(
-                'flex items-center gap-1 font-mono text-sm font-semibold',
-                rrChange > 0 ? 'text-primary' : 'text-destructive',
+                'flex items-center gap-1 text-sm font-semibold',
+                rrChange > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive',
               )}
             >
               {rrChange > 0 ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}

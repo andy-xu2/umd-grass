@@ -48,7 +48,7 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ courtId: string; entryId: string }> }
 ) {
   const supabase = await createClient()

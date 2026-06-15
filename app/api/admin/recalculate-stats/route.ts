@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches, seasonStats, seasons } from '@/drizzle/schema'
-import { eq, and, or } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 
 export async function POST(request: NextRequest) {

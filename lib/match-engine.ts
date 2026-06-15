@@ -5,7 +5,7 @@ import type { db } from '@/lib/db'
 import type { PlacementType, RrConfig } from '@/lib/rr-config'
 
 // Transaction callback receives PgTransaction, not the outer db instance
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type PlacementInfo = {
   kOverride: number | undefined
@@ -94,7 +94,7 @@ function applyResultMultiplier(
     : delta * rrConfig.nonPlacementLossMultiplier
 }
 
-type MatchRow = {
+export type MatchRow = {
   id: string
   team1Player1Id: string
   team1Player2Id: string
@@ -105,8 +105,72 @@ type MatchRow = {
   setScores: unknown
 }
 
+export type MatchDeltaUpdate = {
+  stats: MutableStats
+  userId: string
+  delta: number
+  rrBefore: number
+  rrAfter: number
+}
+
 /**
- * Exact same logic as the Python test:
+ * Applies one match to in-memory stats and returns the RR changes to persist.
+ * Season recalculation uses this to avoid database queries for every player in
+ * every historical match.
+ */
+export function applyMatchDeltasInMemory(
+  match: MatchRow,
+  t1p1Stats: MutableStats,
+  t1p2Stats: MutableStats,
+  t2p1Stats: MutableStats,
+  t2p2Stats: MutableStats,
+  lifetimeGames: readonly [number, number, number, number],
+  rrConfig: RrConfig,
+): MatchDeltaUpdate[] {
+  const [t1p1Lifetime, t1p2Lifetime, t2p1Lifetime, t2p2Lifetime] = lifetimeGames
+  const team1Won = match.team1Sets > match.team2Sets
+  const actualA = team1Won ? 1 : 0
+  const pointDiff = computePointDiff(match.setScores)
+
+  const teamARating = (t1p1Stats.rr + t1p2Stats.rr) / 2
+  const teamBRating = (t2p1Stats.rr + t2p2Stats.rr) / 2
+
+  const t1p1Info = getPlacementInfo(t1p1Lifetime, t1p1Stats.gamesPlayed, rrConfig)
+  const t1p2Info = getPlacementInfo(t1p2Lifetime, t1p2Stats.gamesPlayed, rrConfig)
+  const t2p1Info = getPlacementInfo(t2p1Lifetime, t2p1Stats.gamesPlayed, rrConfig)
+  const t2p2Info = getPlacementInfo(t2p2Lifetime, t2p2Stats.gamesPlayed, rrConfig)
+
+  let t1p1Delta = calculateRrChange(teamARating, teamBRating, actualA, pointDiff, rrConfig, t1p1Info.kOverride)
+  let t1p2Delta = calculateRrChange(teamARating, teamBRating, actualA, pointDiff, rrConfig, t1p2Info.kOverride)
+  let t2p1Delta = -calculateRrChange(teamARating, teamBRating, actualA, pointDiff, rrConfig, t2p1Info.kOverride)
+  let t2p2Delta = -calculateRrChange(teamARating, teamBRating, actualA, pointDiff, rrConfig, t2p2Info.kOverride)
+
+  t1p1Delta = applyResultMultiplier(t1p1Delta, t1p1Info.placementType, team1Won, rrConfig)
+  t1p2Delta = applyResultMultiplier(t1p2Delta, t1p2Info.placementType, team1Won, rrConfig)
+  t2p1Delta = applyResultMultiplier(t2p1Delta, t2p1Info.placementType, !team1Won, rrConfig)
+  t2p2Delta = applyResultMultiplier(t2p2Delta, t2p2Info.placementType, !team1Won, rrConfig)
+
+  return [
+    { stats: t1p1Stats, userId: match.team1Player1Id, delta: t1p1Delta, won: team1Won },
+    { stats: t1p2Stats, userId: match.team1Player2Id, delta: t1p2Delta, won: team1Won },
+    { stats: t2p1Stats, userId: match.team2Player1Id, delta: t2p1Delta, won: !team1Won },
+    { stats: t2p2Stats, userId: match.team2Player2Id, delta: t2p2Delta, won: !team1Won },
+  ].map(({ stats, userId, delta, won }) => {
+    const rrBefore = stats.rr
+    const roundedDelta = Math.round(delta)
+    const rrAfter = Math.max(0, rrBefore + roundedDelta)
+
+    stats.rr = rrAfter
+    stats.gamesPlayed += 1
+    stats.wins = won ? stats.wins + 1 : stats.wins
+    stats.losses = won ? stats.losses : stats.losses + 1
+
+    return { stats, userId, delta: roundedDelta, rrBefore, rrAfter }
+  })
+}
+
+/**
+ * Applies the production match rules:
  * - team rating = average of two players
  * - expected = team-vs-team Elo expected
  * - per-player kOverride from placement state
@@ -131,113 +195,29 @@ export async function applyMatchDeltas(
     countLifetimeGames(tx, match.team2Player2Id, rrConfig.placementGames),
   ])
 
-  const team1Won = match.team1Sets > match.team2Sets
-  const totalSets = match.team1Sets + match.team2Sets
-  const actualA = team1Won ? 1 : 0
-  const pointDiff = computePointDiff(match.setScores)
-
-  const teamARating = (t1p1Stats.rr + t1p2Stats.rr) / 2
-  const teamBRating = (t2p1Stats.rr + t2p2Stats.rr) / 2
-
-  const t1p1Info = getPlacementInfo(t1p1Lifetime, t1p1Stats.gamesPlayed, rrConfig)
-  const t1p2Info = getPlacementInfo(t1p2Lifetime, t1p2Stats.gamesPlayed, rrConfig)
-  const t2p1Info = getPlacementInfo(t2p1Lifetime, t2p1Stats.gamesPlayed, rrConfig)
-  const t2p2Info = getPlacementInfo(t2p2Lifetime, t2p2Stats.gamesPlayed, rrConfig)
-
-  let t1p1Delta = calculateRrChange(
-    teamARating,
-    teamBRating,
-    actualA,
-    pointDiff,
+  const updates = applyMatchDeltasInMemory(
+    match,
+    t1p1Stats,
+    t1p2Stats,
+    t2p1Stats,
+    t2p2Stats,
+    [t1p1Lifetime, t1p2Lifetime, t2p1Lifetime, t2p2Lifetime],
     rrConfig,
-    t1p1Info.kOverride,
   )
 
-  let t1p2Delta = calculateRrChange(
-    teamARating,
-    teamBRating,
-    actualA,
-    pointDiff,
-    rrConfig,
-    t1p2Info.kOverride,
-  )
-
-  let t2p1Delta = -calculateRrChange(
-    teamARating,
-    teamBRating,
-    actualA,
-    pointDiff,
-    rrConfig,
-    t2p1Info.kOverride,
-  )
-
-  let t2p2Delta = -calculateRrChange(
-    teamARating,
-    teamBRating,
-    actualA,
-    pointDiff,
-    rrConfig,
-    t2p2Info.kOverride,
-  )
-
-  t1p1Delta = applyResultMultiplier(t1p1Delta, t1p1Info.placementType, team1Won, rrConfig)
-  t1p2Delta = applyResultMultiplier(t1p2Delta, t1p2Info.placementType, team1Won, rrConfig)
-  t2p1Delta = applyResultMultiplier(t2p1Delta, t2p1Info.placementType, !team1Won, rrConfig)
-  t2p2Delta = applyResultMultiplier(t2p2Delta, t2p2Info.placementType, !team1Won, rrConfig)
-
-  const updates = [
-    {
-      stats: t1p1Stats,
-      userId: match.team1Player1Id,
-      delta: t1p1Delta,
-      won: team1Won,
-    },
-    {
-      stats: t1p2Stats,
-      userId: match.team1Player2Id,
-      delta: t1p2Delta,
-      won: team1Won,
-    },
-    {
-      stats: t2p1Stats,
-      userId: match.team2Player1Id,
-      delta: t2p1Delta,
-      won: !team1Won,
-    },
-    {
-      stats: t2p2Stats,
-      userId: match.team2Player2Id,
-      delta: t2p2Delta,
-      won: !team1Won,
-    },
-  ]
-
-  for (const { stats, userId, delta, won } of updates) {
-    const rrBefore = stats.rr
-    const roundedDelta = Math.round(delta)
-    const newRr = Math.max(0, rrBefore + roundedDelta)
-
-    const newGames = stats.gamesPlayed + 1
-    const newWins = won ? stats.wins + 1 : stats.wins
-    const newLosses = won ? stats.losses : stats.losses + 1
-
+  for (const { stats, userId, delta, rrBefore, rrAfter } of updates) {
     await tx
       .update(seasonStats)
-      .set({ rr: newRr, gamesPlayed: newGames, wins: newWins, losses: newLosses })
+      .set({ rr: rrAfter, gamesPlayed: stats.gamesPlayed, wins: stats.wins, losses: stats.losses })
       .where(eq(seasonStats.id, stats.id))
 
     await tx.insert(rrChanges).values({
       matchId: match.id,
       userId,
       seasonId,
-      delta: roundedDelta,
+      delta,
       rrBefore,
-      rrAfter: newRr,
+      rrAfter,
     })
-
-    stats.rr = newRr
-    stats.gamesPlayed = newGames
-    stats.wins = newWins
-    stats.losses = newLosses
   }
 }

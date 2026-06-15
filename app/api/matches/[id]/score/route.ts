@@ -2,12 +2,9 @@
 // Update a confirmed match's set scores and recalculate RR for all 4 players.
 // Body: { setScores: Array<{ team1: number; team2: number }> }
 //
-// Flow:
-//  1. Reverse old RR deltas for all 4 players
-//  2. Recalculate ELO using the reversed (pre-match) RR values
-//  3. Apply new deltas and update rr_changes rows
+// Updates the stored point/set result, then replays the match's season so all
+// order-dependent season_stats and rr_changes remain consistent.
 
-// PATCH /api/matches/[id]/score — admin only
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'

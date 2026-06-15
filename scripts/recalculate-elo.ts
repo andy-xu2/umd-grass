@@ -13,7 +13,7 @@ import { config } from 'dotenv'
 config({ path: '.env.local' })
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { eq, asc, and, ne, desc } from 'drizzle-orm'
+import { eq, asc, and, desc } from 'drizzle-orm'
 import * as schema from '../drizzle/schema'
 import {
   calculateRrChange,

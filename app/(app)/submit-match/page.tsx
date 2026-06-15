@@ -17,7 +17,10 @@ import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock,
 import { cn } from '@/lib/utils'
 import { isUnranked } from '@/lib/ranks'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
 import { formatInTimeZone } from 'date-fns-tz'
+
+const realtimeTables = ['matches', 'season_stats'] as const
 
 function PlayerCombobox({
   value,
@@ -94,8 +97,13 @@ export default function SubmitMatchPage() {
   const [sets, setSets] = useState<SetScore[]>([emptySet()])
 
   const [playedDate, setPlayedDate] = useState('')
+  const [isDateFocused, setIsDateFocused] = useState(false)
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [verifyingMatch, setVerifyingMatch] = useState<{
+    id: string
+    action: 'confirm' | 'reject'
+  } | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
@@ -124,6 +132,12 @@ export default function SubmitMatchPage() {
     })
     loadData().finally(() => setLoadingData(false))
   }, [loadData])
+
+  useRealtimeRefresh({
+    channelName: 'submit-match-updates',
+    tables: realtimeTables,
+    onRefresh: loadData,
+  })
 
   const otherUsers = allUsers
     .filter(u => u.id !== currentUserId)
@@ -221,22 +235,22 @@ export default function SubmitMatchPage() {
   }
 
   const handleVerify = async (matchId: string, action: 'confirm' | 'reject') => {
-    // Optimistically remove the match immediately so the UI responds instantly
-    const previous = myMatches
-    setMyMatches(prev => prev.filter(m => m.id !== matchId))
+    if (verifyingMatch) return
 
-    const res = await fetch(`/api/matches/${matchId}/verify`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    })
+    setVerifyingMatch({ id: matchId, action })
 
-    if (res.ok) {
-      // Refresh in background to sync any RR/stat changes
-      loadData()
-    } else {
-      // Restore on failure
-      setMyMatches(previous)
+    try {
+      const res = await fetch(`/api/matches/${matchId}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+
+      if (res.ok) {
+        await loadData()
+      }
+    } finally {
+      setVerifyingMatch(null)
     }
   }
 
@@ -254,10 +268,6 @@ export default function SubmitMatchPage() {
     ? Math.ceil((seasonEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null
   const isEndingSoon = daysUntilEnd !== null && daysUntilEnd <= 7
-
-  function formatDisplayDate(iso: string) {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-  }
 
   function formatDisplayDateTime(iso: string) {
     return formatInTimeZone(
@@ -427,13 +437,23 @@ export default function SubmitMatchPage() {
                       {/* Date */}
                       <div className="space-y-2">
                         <Label htmlFor="played-date">Date</Label>
-                        <Input
-                          id="played-date"
-                          type="date"
-                          value={playedDate}
-                          onChange={e => setPlayedDate(e.target.value)}
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            id="played-date"
+                            type="date"
+                            value={playedDate}
+                            onChange={e => setPlayedDate(e.target.value)}
+                            onFocus={() => setIsDateFocused(true)}
+                            onBlur={() => setIsDateFocused(false)}
+                            className={!playedDate && !isDateFocused ? 'text-transparent' : undefined}
+                            required
+                          />
+                          {!playedDate && !isDateFocused && (
+                            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                              Select match date
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Time (3 dropdowns) */}
@@ -674,6 +694,7 @@ export default function SubmitMatchPage() {
                   match={match}
                   onConfirm={handleConfirm}
                   onReject={handleReject}
+                  pendingAction={verifyingMatch?.id === match.id ? verifyingMatch.action : null}
                 />
               ))
             ) : (

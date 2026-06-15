@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase-server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'
-import { eq, and, gt, count, desc } from 'drizzle-orm'
+import { eq, and, gt, count } from 'drizzle-orm'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
