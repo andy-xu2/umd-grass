@@ -30,7 +30,7 @@ There is no monorepo or npm workspace configuration.
   - `~offline/`: client-side PWA fallback.
 - `components/`: shared product components such as `MatchCard`, `VerificationCard`, `PlayerCard`, `LeaderboardRow`, `MiniLeaderboard`, `SeasonSelector`, `DashboardPanel`, and `Navbar`.
   - `components/ui/`: shared shadcn/Radix primitives. Changes here affect the entire app; prefer composing a feature component unless a primitive itself needs to change.
-- `hooks/`: currently only the responsive `useIsMobile` hook.
+- `hooks/`: shared browser hooks. `use-mobile.ts` handles responsive state; `use-realtime-refresh.ts` turns Supabase Postgres Change events into debounced API refetches.
 - `lib/`: shared infrastructure and business logic.
   - `db.ts`: pooled Postgres/Drizzle singleton with `prepare: false` for Supabase's transaction pooler.
   - `supabase-browser.ts`, `supabase-server.ts`: browser, cookie-backed server, service-role, and session helpers.
@@ -45,7 +45,7 @@ There is no monorepo or npm workspace configuration.
 - `drizzle/migrations/`: SQL migrations and Drizzle metadata; see the migration warning below before relying on them.
 - `scripts/seed-dev.js`: destructive deterministic development seed.
 - `scripts/recalculate-elo.ts`: standalone destructive replay script; it is not the production repair implementation and currently differs from `lib/recalculate-rr.ts`.
-- `supabase/expire-matches-cron.sql`: manual Supabase `pg_cron` setup for expiring pending matches.
+- `supabase/`: manual Supabase operational SQL. `expire-matches-cron.sql` installs pending-match expiry; `realtime-publication.sql` idempotently enables live match, ranking, and queue notifications.
 - `public/`: PWA manifest, icons, and static images. The production PWA build also emits service-worker assets here.
 - Root configuration: `proxy.ts`, `next.config.mjs`, `drizzle.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `components.json`, `vercel.json`, `.env.example`, and `.nvmrc`.
 
@@ -106,6 +106,7 @@ The production build fetches Geist from Google through `next/font`; a network-re
 ## Authentication, authorization, and Supabase
 
 - Browser auth uses `createClient()` from `lib/supabase-browser.ts`.
+- Live screens use `useRealtimeRefresh()` as an invalidation signal and then refetch existing APIs; do not apply untrusted Realtime row payloads directly to UI state. The hook refreshes on every `SUBSCRIBED` status to close non-replayed connection gaps. Keep table arrays module-level so subscriptions are not recreated on every render.
 - Server Components may use `getSessionUser()` because `proxy.ts` already verified the request. API routes must use `createClient()` plus `supabase.auth.getUser()` for full verification.
 - `createAdminClient()` uses `SUPABASE_SERVICE_ROLE_KEY`, bypasses RLS, and must remain server-only.
 - Signup stores the display name in Supabase user metadata. After the eight-digit email signup OTP is verified, `POST /api/users` mirrors the auth user into the public `users` table. This is email OTP verification, not TOTP/MFA.
@@ -240,6 +241,7 @@ Never expose the service-role key, database URL, or Resend key to Client Compone
 - Change `drizzle/schema.ts`, then use the installed Drizzle CLI (there are no npm wrappers), for example `npx drizzle-kit generate` and `npx drizzle-kit migrate`. Inspect generated SQL before applying it.
 - The checked-in migration history is inconsistent: the journal references a missing migration name, there are duplicate numeric prefixes, and current tournament/schema fields are not fully represented by the SQL files. Do not assume a fresh migration replay matches production. Reconcile the journal, SQL, actual target database, and schema as part of any migration task; do not rewrite old applied migrations casually.
 - `supabase/expire-matches-cron.sql` is run manually in the Supabase SQL editor and is not part of Drizzle migrations.
+- `supabase/realtime-publication.sql` must also be run manually for cross-client updates. When adding a new live table, add it to that publication script and the `RealtimeTable` union; consider RLS/data exposure before publishing sensitive tables.
 - `scripts/recalculate-elo.ts` deletes/rebuilds ranking data and differs from the production replay helper in ordering and formula details. Prefer the in-app `lib/recalculate-rr.ts` workflow; do not run the standalone script without auditing and explicit intent.
 - The app targets Vercel. `vercel.json` sets security headers, CSP, and service-worker caching headers. `next.config.mjs` enables Cache Components, unoptimized Next images, and the production PWA runtime caches. Preserve `/~offline`, `public/manifest.json`, and service-worker header behavior when changing deployment/PWA configuration.
 - PWA runtime caching includes API and authenticated pages. Be careful not to expand caching of sensitive responses without considering offline data exposure and staleness.

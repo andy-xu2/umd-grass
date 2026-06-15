@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -33,6 +33,9 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle'
 import { createClient } from '@/lib/supabase-browser'
 import { cn, getInitials } from '@/lib/utils'
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
+
+const realtimeTables = ['matches'] as const
 
 const ADMIN_IDS = [
   process.env.NEXT_PUBLIC_ADMIN_USER_ID,
@@ -63,6 +66,12 @@ export function Navbar() {
   const [pendingCount, setPendingCount] = useState(0)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
 
+  const loadPendingCount = useCallback(async () => {
+    const response = await fetch('/api/matches/pending-count')
+    const data = response.ok ? await response.json() : { count: 0 }
+    setPendingCount(data.count ?? 0)
+  }, [])
+
   useEffect(() => {
     const supabase = createClient()
 
@@ -89,11 +98,14 @@ export function Navbar() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/matches/pending-count')
-      .then(response => response.ok ? response.json() : { count: 0 })
-      .then(data => setPendingCount(data.count ?? 0))
-      .catch(() => {})
-  }, [pathname])
+    loadPendingCount().catch(() => {})
+  }, [loadPendingCount, pathname])
+
+  useRealtimeRefresh({
+    channelName: 'navbar-match-notifications',
+    tables: realtimeTables,
+    onRefresh: loadPendingCount,
+  })
 
   useEffect(() => {
     setMobileMenuOpen(false)

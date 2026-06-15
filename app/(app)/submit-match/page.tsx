@@ -17,7 +17,10 @@ import { Loader2, CheckCircle, PlusCircle, Clock, Trash2, Trophy, CalendarClock,
 import { cn } from '@/lib/utils'
 import { isUnranked } from '@/lib/ranks'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
 import { formatInTimeZone } from 'date-fns-tz'
+
+const realtimeTables = ['matches', 'season_stats'] as const
 
 function PlayerCombobox({
   value,
@@ -129,6 +132,12 @@ export default function SubmitMatchPage() {
     })
     loadData().finally(() => setLoadingData(false))
   }, [loadData])
+
+  useRealtimeRefresh({
+    channelName: 'submit-match-updates',
+    tables: realtimeTables,
+    onRefresh: loadData,
+  })
 
   const otherUsers = allUsers
     .filter(u => u.id !== currentUserId)

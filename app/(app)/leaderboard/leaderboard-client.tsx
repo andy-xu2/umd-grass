@@ -11,6 +11,9 @@ import { isUnranked } from '@/lib/ranks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { LeaderboardEntry, LeaderboardResponse, Season } from '@/lib/types'
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
+
+const realtimeTables = ['season_stats', 'rr_changes'] as const
 
 interface MeData {
   id: string
@@ -49,6 +52,17 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
     }
     setLoading(false)
   }, [])
+
+  const refreshSelectedSeason = useCallback(() => {
+    if (seasonId) return loadSeason(seasonId)
+  }, [loadSeason, seasonId])
+
+  useRealtimeRefresh({
+    channelName: 'leaderboard-updates',
+    tables: realtimeTables,
+    onRefresh: refreshSelectedSeason,
+    enabled: seasonId !== null,
+  })
 
   function handleSeasonChange(id: string) {
     setSeasonId(id)
