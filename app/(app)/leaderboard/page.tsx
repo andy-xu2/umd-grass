@@ -2,11 +2,11 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
-import { users, seasons, seasonStats } from '@/drizzle/schema'
-import { eq, desc, gt, gte, and, count } from 'drizzle-orm'
+import { seasons } from '@/drizzle/schema'
+import { desc } from 'drizzle-orm'
 import { Loader2 } from 'lucide-react'
 import type { Season, LeaderboardEntry } from '@/lib/types'
-import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
+import { fetchCachedLeaderboardRows, fetchLeaderboardMe } from '@/lib/leaderboard'
 import LeaderboardClient from './leaderboard-client'
 
 async function LeaderboardData({ userId }: { userId: string }) {
@@ -25,29 +25,8 @@ async function LeaderboardData({ userId }: { userId: string }) {
   let me = null
 
   if (seasonId) {
-    const [profile] = await db.select().from(users).where(eq(users.id, userId))
-    const [stat] = await db.select().from(seasonStats)
-      .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, seasonId)))
-
     entries = await fetchCachedLeaderboardRows(seasonId)
-
-    const rankCountResult = stat && stat.gamesPlayed >= 5
-      ? await db.select({ value: count() })
-          .from(seasonStats)
-          .where(and(
-            eq(seasonStats.seasonId, seasonId),
-            gte(seasonStats.gamesPlayed, 5),
-            gt(seasonStats.rr, stat.rr),
-          ))
-      : null
-
-    const rank = rankCountResult ? Number(rankCountResult[0].value) + 1 : null
-    me = {
-      id: userId,
-      name: profile?.name ?? '',
-      stats: stat ? { rr: stat.rr, gamesPlayed: stat.gamesPlayed } : null,
-      rank,
-    }
+    me = await fetchLeaderboardMe(userId, seasonId, entries)
   }
 
   return (

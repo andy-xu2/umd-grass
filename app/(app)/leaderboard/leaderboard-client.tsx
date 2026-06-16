@@ -10,47 +10,43 @@ import { getInitials } from '@/lib/utils'
 import { isUnranked } from '@/lib/ranks'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { LeaderboardEntry, LeaderboardResponse, Season } from '@/lib/types'
+import type { LeaderboardEntry, LeaderboardMe, LeaderboardResponse, Season } from '@/lib/types'
 import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
 
-const realtimeTables = ['season_stats', 'rr_changes'] as const
-
-interface MeData {
-  id: string
-  name: string
-  stats: { rr: number; gamesPlayed: number } | null
-  rank: number | null
-}
+const realtimeTables = ['season_stats'] as const
 
 interface Props {
   initialEntries: LeaderboardEntry[]
-  initialMe: MeData | null
+  initialMe: LeaderboardMe | null
   initialSeasonId: string | null
   initialSeasons: Season[]
 }
 
 export default function LeaderboardClient({ initialEntries, initialMe, initialSeasonId, initialSeasons }: Props) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>(initialEntries)
-  const [me, setMe] = useState<MeData | null>(initialMe)
+  const [me, setMe] = useState<LeaderboardMe | null>(initialMe)
   const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [seasonId, setSeasonId] = useState<string | null>(initialSeasonId)
-  const loadedSeasonId = useRef<string | null>(initialSeasonId)
+  const requestId = useRef(0)
 
   const loadSeason = useCallback(async (sid: string) => {
+    const currentRequestId = ++requestId.current
     setLoading(true)
-    const isLifetime = sid === 'lifetime'
-    const lbRes = await fetch(`/api/leaderboard?seasonId=${sid}`)
-    if (lbRes.ok) {
-      const data: LeaderboardResponse = await lbRes.json()
-      setEntries(data.entries)
-      loadedSeasonId.current = sid
+    try {
+      const response = await fetch(`/api/leaderboard?seasonId=${sid}`)
+      if (!response.ok) return
+
+      const data: LeaderboardResponse = await response.json()
+      const next = { entries: data.entries, me: data.me ?? null }
+
+      if (currentRequestId === requestId.current) {
+        setEntries(next.entries)
+        setMe(next.me)
+      }
+    } finally {
+      if (currentRequestId === requestId.current) setLoading(false)
     }
-    if (!isLifetime) {
-      const meRes = await fetch(`/api/users/me?seasonId=${sid}`)
-      if (meRes.ok) setMe(await meRes.json())
-    }
-    setLoading(false)
   }, [])
 
   const refreshSelectedSeason = useCallback(() => {
@@ -62,12 +58,16 @@ export default function LeaderboardClient({ initialEntries, initialMe, initialSe
     tables: realtimeTables,
     onRefresh: refreshSelectedSeason,
     enabled: seasonId !== null,
+    filter: seasonId && seasonId !== 'lifetime'
+      ? `season_id=eq.${seasonId}`
+      : undefined,
+    refreshOnInitialSubscribe: false,
   })
 
   function handleSeasonChange(id: string) {
     setSeasonId(id)
     setSearch('')
-    if (id !== loadedSeasonId.current) loadSeason(id)
+    void loadSeason(id)
   }
 
   const filteredEntries = useMemo(() => {

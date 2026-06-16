@@ -10,6 +10,7 @@ import { users, seasonStats, seasons, matches } from '@/drizzle/schema'
 import { eq, and, gt, count, or, desc } from 'drizzle-orm'
 import { PLACEMENT_GAMES } from '@/lib/elo'
 import { isAdmin } from '@/lib/utils'
+import { invalidateAllLeaderboardCaches } from '@/lib/leaderboard'
 
 export async function GET(
   request: NextRequest,
@@ -91,6 +92,7 @@ export async function PATCH(
   const [updated] = await db.update(users).set({ name }).where(eq(users.id, id)).returning()
   if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
+  invalidateAllLeaderboardCaches()
   return NextResponse.json({ ...updated, createdAt: updated.createdAt.toISOString() })
 }
 
@@ -132,5 +134,6 @@ export async function DELETE(
   const adminSupabase = createAdminClient()
   await adminSupabase.auth.admin.deleteUser(id)
 
+  invalidateAllLeaderboardCaches()
   return NextResponse.json({ ok: true })
 }

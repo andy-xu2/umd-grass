@@ -8,6 +8,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
 import { users, seasonStats, seasons } from '@/drizzle/schema'
 import { eq, and, gt, count } from 'drizzle-orm'
+import { invalidateAllLeaderboardCaches } from '@/lib/leaderboard'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -128,5 +129,6 @@ export async function PATCH(request: Request) {
     .where(eq(users.id, user.id))
     .returning()
 
+  invalidateAllLeaderboardCaches()
   return NextResponse.json(updated)
 }

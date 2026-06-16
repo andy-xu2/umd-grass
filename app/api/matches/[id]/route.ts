@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { matches, seasonStats, rrChanges } from '@/drizzle/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
+import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 
 export async function DELETE(
   _request: Request,
@@ -81,6 +82,8 @@ export async function DELETE(
     await tx.delete(rrChanges).where(eq(rrChanges.matchId, id))
     await tx.delete(matches).where(eq(matches.id, id))
   })
+
+  invalidateLeaderboardCache(match.seasonId)
 
   return NextResponse.json({ ok: true })
 }

@@ -12,6 +12,7 @@ import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 import { recalculateSeasonRr } from '@/lib/recalculate-rr'
+import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import type { SetScore } from '@/lib/types'
 
 export async function PATCH(
@@ -57,5 +58,6 @@ export async function PATCH(
     })
     .where(eq(matches.id, id))                     
   await recalculateSeasonRr(match.seasonId)
+  invalidateLeaderboardCache(match.seasonId)
   return NextResponse.json({ ok: true })
 }

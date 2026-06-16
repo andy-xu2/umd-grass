@@ -10,6 +10,8 @@ import {
 type RealtimeRouteRefreshProps = {
   channelName: string
   tables: readonly RealtimeTable[]
+  filter?: string
+  refreshOnInitialSubscribe?: boolean
 }
 
 /**
@@ -19,6 +21,8 @@ type RealtimeRouteRefreshProps = {
 export function RealtimeRouteRefresh({
   channelName,
   tables,
+  filter,
+  refreshOnInitialSubscribe,
 }: RealtimeRouteRefreshProps) {
   const router = useRouter()
   const refreshRoute = useCallback(() => router.refresh(), [router])
@@ -27,6 +31,8 @@ export function RealtimeRouteRefresh({
     channelName,
     tables,
     onRefresh: refreshRoute,
+    filter,
+    refreshOnInitialSubscribe,
   })
 
   return null

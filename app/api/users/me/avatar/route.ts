@@ -7,6 +7,7 @@ import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { db } from '@/lib/db'
 import { users } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
+import { invalidateAllLeaderboardCaches } from '@/lib/leaderboard'
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg': 'jpg',
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
   const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
 
   await db.update(users).set({ avatarUrl: cacheBustedUrl }).where(eq(users.id, user.id))
+  invalidateAllLeaderboardCaches()
 
   return NextResponse.json({ avatarUrl: cacheBustedUrl })
 }
@@ -94,6 +96,7 @@ export async function DELETE() {
   }
 
   await db.update(users).set({ avatarUrl: null }).where(eq(users.id, user.id))
+  invalidateAllLeaderboardCaches()
 
   return NextResponse.json({ ok: true })
 }

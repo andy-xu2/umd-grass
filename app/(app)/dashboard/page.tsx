@@ -16,7 +16,7 @@ import { PLACEMENT_GAMES } from '@/lib/elo'
 import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
 import { getSessionUser } from '@/lib/supabase-server'
 
-const realtimeTables = ['matches', 'season_stats', 'rr_changes'] as const
+const realtimeTables = ['matches', 'season_stats'] as const
 
 async function DashboardLeaderboard({ seasonId, userId }: { seasonId: string | null; userId: string }) {
   if (!seasonId) {
@@ -139,6 +139,8 @@ export default async function DashboardPage() {
       <RealtimeRouteRefresh
         channelName="dashboard-updates"
         tables={realtimeTables}
+        filter={activeSeason ? `season_id=eq.${activeSeason.id}` : undefined}
+        refreshOnInitialSubscribe={false}
       />
 
       <header>

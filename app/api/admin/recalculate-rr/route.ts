@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { recalculateSeasonRr } from '@/lib/recalculate-rr'
+import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 
 export async function POST(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
 
   try {
     await recalculateSeasonRr(seasonId)
+    invalidateLeaderboardCache(seasonId)
 
     return NextResponse.json({ ok: true })
   } catch (err) {

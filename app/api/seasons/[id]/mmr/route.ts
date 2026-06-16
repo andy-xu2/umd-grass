@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { seasonStats } from '@/drizzle/schema'
 import { eq, and } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
+import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 
 export async function PATCH(
   request: Request,
@@ -42,6 +43,7 @@ export async function PATCH(
       .set({ rr: body.rr })
       .where(eq(seasonStats.id, existing.id))
       .returning()
+    invalidateLeaderboardCache(seasonId)
     return NextResponse.json(updated)
   }
 
@@ -57,5 +59,6 @@ export async function PATCH(
     })
     .returning()
 
+  invalidateLeaderboardCache(seasonId)
   return NextResponse.json(created, { status: 201 })
 }

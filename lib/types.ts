@@ -81,6 +81,14 @@ export interface AllTimeStats {
 export interface LeaderboardResponse {
   entries: LeaderboardEntry[]
   seasonId: string | null
+  me?: LeaderboardMe | null
+}
+
+export interface LeaderboardMe {
+  id: string
+  name: string
+  stats: { rr: number; gamesPlayed: number } | null
+  rank: number | null
 }
 
 export interface QueueTeamResponse {

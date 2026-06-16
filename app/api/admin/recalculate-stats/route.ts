@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { matches, seasonStats, seasons } from '@/drizzle/schema'
 import { eq, and } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
+import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -91,6 +92,8 @@ export async function POST(request: NextRequest) {
         .where(eq(seasonStats.id, row.id))
     }
   })
+
+  invalidateLeaderboardCache(seasonId)
 
   return NextResponse.json({
     ok: true,

@@ -16,6 +16,8 @@ type RealtimeRefreshOptions = {
   onRefresh: () => void | Promise<void>
   enabled?: boolean
   debounceMs?: number
+  filter?: string
+  refreshOnInitialSubscribe?: boolean
 }
 
 /**
@@ -29,6 +31,8 @@ export function useRealtimeRefresh({
   onRefresh,
   enabled = true,
   debounceMs = 250,
+  filter,
+  refreshOnInitialSubscribe = true,
 }: RealtimeRefreshOptions) {
   const refreshRef = useRef(onRefresh)
 
@@ -42,6 +46,7 @@ export function useRealtimeRefresh({
     const supabase = createClient()
     const channel = supabase.channel(channelName)
     let refreshTimer: ReturnType<typeof setTimeout> | undefined
+    let hasSubscribed = false
 
     const scheduleRefresh = () => {
       if (refreshTimer) clearTimeout(refreshTimer)
@@ -57,18 +62,21 @@ export function useRealtimeRefresh({
     for (const table of tables) {
       channel.on(
         'postgres_changes',
-        { event: '*', schema: 'public', table },
+        { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) },
         scheduleRefresh,
       )
     }
 
     channel.subscribe(status => {
-      if (status === 'SUBSCRIBED') scheduleRefresh()
+      if (status !== 'SUBSCRIBED') return
+
+      if (hasSubscribed || refreshOnInitialSubscribe) scheduleRefresh()
+      hasSubscribed = true
     })
 
     return () => {
       if (refreshTimer) clearTimeout(refreshTimer)
       void supabase.removeChannel(channel)
     }
-  }, [channelName, debounceMs, enabled, tables])
+  }, [channelName, debounceMs, enabled, filter, refreshOnInitialSubscribe, tables])
 }
