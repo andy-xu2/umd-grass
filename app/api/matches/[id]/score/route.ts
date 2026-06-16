@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
-import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrFromTx } from '@/lib/recalculate-rr'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import type { SetScore } from '@/lib/types'
 
@@ -58,7 +58,7 @@ export async function PATCH(
       })
       .where(eq(matches.id, id))
 
-    await recalculateSeasonRrTx(tx, match.seasonId)
+    await recalculateSeasonRrFromTx(tx, match.seasonId, match)
     return { seasonId: match.seasonId } as const
   })
 

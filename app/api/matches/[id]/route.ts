@@ -8,7 +8,7 @@ import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
-import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrFromTx } from '@/lib/recalculate-rr'
 
 export async function DELETE(
   _request: Request,
@@ -31,8 +31,15 @@ export async function DELETE(
       return { error: 'Only confirmed matches can be deleted', status: 400 } as const
     }
 
+    const affectedPlayerIds = [
+      match.team1Player1Id,
+      match.team1Player2Id,
+      match.team2Player1Id,
+      match.team2Player2Id,
+    ]
+
     await tx.delete(matches).where(eq(matches.id, id))
-    await recalculateSeasonRrTx(tx, match.seasonId)
+    await recalculateSeasonRrFromTx(tx, match.seasonId, match, affectedPlayerIds)
     return { seasonId: match.seasonId } as const
   })
 

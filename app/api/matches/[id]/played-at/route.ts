@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
-import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrFromTx } from '@/lib/recalculate-rr'
+import { earliestRrReplayBoundary } from '@/lib/rr-replay-order'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import { fromZonedTime } from 'date-fns-tz'
 
@@ -57,12 +58,18 @@ export async function PATCH(
     const [match] = await tx.select().from(matches).where(eq(matches.id, id))
     if (!match) return { error: 'Match not found', status: 404 } as const
 
+    const replayBoundary = earliestRrReplayBoundary(match, {
+      id: match.id,
+      playedAt,
+      submittedAt: match.submittedAt,
+    })
+
     await tx
       .update(matches)
       .set({ playedAt })
       .where(eq(matches.id, id))
 
-    await recalculateSeasonRrTx(tx, match.seasonId)
+    await recalculateSeasonRrFromTx(tx, match.seasonId, replayBoundary)
     return { seasonId: match.seasonId } as const
   })
 

@@ -3,7 +3,7 @@ import { matches } from '@/drizzle/schema'
 import { and, eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
 import { applyConfirmedMatchIncrementalTx } from '@/lib/apply-confirmed-match'
-import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrFromTx } from '@/lib/recalculate-rr'
 import { isMostRecentConfirmedMatchRow } from '@/lib/is-most-recent-match'
 
 export type VerificationAction = 'confirm' | 'reject'
@@ -83,7 +83,7 @@ export async function verifyMatch(
     if (isNewest) {
       await applyConfirmedMatchIncrementalTx(tx, claimed.id)
     } else {
-      await recalculateSeasonRrTx(tx, claimed.seasonId)
+      await recalculateSeasonRrFromTx(tx, claimed.seasonId, claimed)
     }
 
     return {

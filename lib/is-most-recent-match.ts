@@ -44,7 +44,13 @@ export async function isMostRecentConfirmedMatchRow(tx: Tx, match: MatchOrdering
           gt(matches.playedAt, match.playedAt),
           and(
             eq(matches.playedAt, match.playedAt),
-            gt(matches.submittedAt, match.submittedAt),
+            or(
+              gt(matches.submittedAt, match.submittedAt),
+              and(
+                eq(matches.submittedAt, match.submittedAt),
+                gt(matches.id, match.id),
+              ),
+            ),
           ),
         ),
       ),
