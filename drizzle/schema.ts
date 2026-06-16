@@ -56,6 +56,7 @@ export const seasonStats = pgTable('season_stats', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   seasonId: uuid('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  startingRr: integer('starting_rr').notNull().default(800),
   rr: integer('rr').notNull().default(800),
   gamesPlayed: integer('games_played').notNull().default(0),
   wins: integer('wins').notNull().default(0),

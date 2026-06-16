@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
-import { recalculateSeasonRr } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import { fromZonedTime } from 'date-fns-tz'
 
@@ -53,18 +53,24 @@ export async function PATCH(
     )
   }
 
-  const [match] = await db.select().from(matches).where(eq(matches.id, id))
-  if (!match) {
-    return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+  const result = await db.transaction(async tx => {
+    const [match] = await tx.select().from(matches).where(eq(matches.id, id))
+    if (!match) return { error: 'Match not found', status: 404 } as const
+
+    await tx
+      .update(matches)
+      .set({ playedAt })
+      .where(eq(matches.id, id))
+
+    await recalculateSeasonRrTx(tx, match.seasonId)
+    return { seasonId: match.seasonId } as const
+  })
+
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
 
-  await db
-    .update(matches)
-    .set({ playedAt })
-    .where(eq(matches.id, id))
-
-  await recalculateSeasonRr(match.seasonId)
-  invalidateLeaderboardCache(match.seasonId)
+  invalidateLeaderboardCache(result.seasonId)
 
   return NextResponse.json({ ok: true })
 }

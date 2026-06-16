@@ -40,7 +40,10 @@ export async function PATCH(
   if (existing) {
     const [updated] = await db
       .update(seasonStats)
-      .set({ rr: body.rr })
+      .set({
+        rr: body.rr,
+        ...(existing.gamesPlayed === 0 ? { startingRr: body.rr } : {}),
+      })
       .where(eq(seasonStats.id, existing.id))
       .returning()
     invalidateLeaderboardCache(seasonId)
@@ -52,6 +55,7 @@ export async function PATCH(
     .values({
       userId: body.userId,
       seasonId,
+      startingRr: body.rr,
       rr: body.rr,
       gamesPlayed: 0,
       wins: 0,

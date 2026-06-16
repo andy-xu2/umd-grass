@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { matches, seasonStats, rrChanges, seasons } from '@/drizzle/schema'
-import { eq, and, ne, desc, asc, count, inArray, sql } from 'drizzle-orm'
+import { eq, and, ne, desc, asc, count, inArray, notInArray, sql } from 'drizzle-orm'
 import { applySeasonDecay } from '@/lib/elo'
 import { applyMatchDeltasInMemory, type MutableStats } from '@/lib/match-engine'
 import { DEFAULT_RR_CONFIG } from '@/lib/rr-config'
@@ -48,8 +48,34 @@ export async function recalculateSeasonRrTx(tx: Tx, seasonId: string) {
 
   if (playerIds.length === 0) {
     await tx.delete(rrChanges).where(eq(rrChanges.seasonId, seasonId))
+    await tx
+      .update(seasonStats)
+      .set({
+        rr: sql`${seasonStats.startingRr}`,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+      })
+      .where(eq(seasonStats.seasonId, seasonId))
     return
   }
+
+  // A deleted match may have been a player's only match in the season. Reset
+  // any such non-participants instead of leaving their deleted result in stats.
+  await tx
+    .update(seasonStats)
+    .set({
+      rr: sql`${seasonStats.startingRr}`,
+      gamesPlayed: 0,
+      wins: 0,
+      losses: 0,
+    })
+    .where(
+      and(
+        eq(seasonStats.seasonId, seasonId),
+        notInArray(seasonStats.userId, playerIds),
+      ),
+    )
 
   const priorSeasonStats = await tx
     .select({
@@ -77,15 +103,17 @@ export async function recalculateSeasonRrTx(tx: Tx, seasonId: string) {
     historicalGameCounts.map(row => [row.userId, Number(row.games)]),
   )
   const statsByUser = new Map<string, MutableStats>()
+  const startingRrByUser = new Map<string, number>()
   const newStatsUserIds = new Set<string>()
 
   for (const userId of playerIds) {
     const existing = keepByUser.get(userId)
     const priorRr = priorRrByUser.get(userId)
-    const startingRR = priorRr !== undefined
+    const startingRR = existing?.startingRr ?? (priorRr !== undefined
       ? applySeasonDecay(priorRr)
-      : rrConfig.baseStartingRr
+      : rrConfig.baseStartingRr)
 
+    startingRrByUser.set(userId, startingRR)
     statsByUser.set(userId, {
       id: existing?.id ?? '',
       rr: startingRR,
@@ -178,6 +206,7 @@ export async function recalculateSeasonRrTx(tx: Tx, seasonId: string) {
     return {
       userId,
       seasonId,
+      startingRr: startingRrByUser.get(userId)!,
       rr: stats.rr,
       gamesPlayed: stats.gamesPlayed,
       wins: stats.wins,

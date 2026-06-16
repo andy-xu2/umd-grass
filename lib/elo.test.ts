@@ -26,14 +26,21 @@ describe('marginMultiplier', () => {
     expect(marginMultiplier(20, 0)).toBe(1)
   })
 
-  it('returns greater than 1 when MOV is enabled', () => {
-    expect(marginMultiplier(7, 0.05)).toBeGreaterThan(1)
+  it('reduces close results and increases decisive results', () => {
+    expect(marginMultiplier(2, 0.05)).toBeLessThan(1)
+    expect(marginMultiplier(8, 0.05)).toBeCloseTo(1)
+    expect(marginMultiplier(20, 0.05)).toBeGreaterThan(1)
   })
 
   it('increases as score diff increases', () => {
     expect(marginMultiplier(10, 0.05)).toBeGreaterThan(
       marginMultiplier(2, 0.05),
     )
+  })
+
+  it('keeps the adjustment within ten percent', () => {
+    expect(marginMultiplier(0, 0.05)).toBeGreaterThanOrEqual(0.9)
+    expect(marginMultiplier(1000, 0.05)).toBeLessThanOrEqual(1.1)
   })
 })
 
@@ -43,7 +50,7 @@ describe('calculateRrChange', () => {
       800,
       800,
       1,
-      0,
+      8,
       DEFAULT_RR_CONFIG,
     )
 
@@ -55,7 +62,7 @@ describe('calculateRrChange', () => {
       800,
       800,
       0,
-      0,
+      8,
       DEFAULT_RR_CONFIG,
     )
 
@@ -135,16 +142,26 @@ describe('calculateRrChange', () => {
 
     expect(withMov).toBeGreaterThan(noMov)
   })
+
+  it('moves less RR for close games and more for blowouts', () => {
+    const close = calculateRrChange(800, 800, 1, 2, DEFAULT_RR_CONFIG)
+    const neutral = calculateRrChange(800, 800, 1, 8, DEFAULT_RR_CONFIG)
+    const blowout = calculateRrChange(800, 800, 1, 20, DEFAULT_RR_CONFIG)
+
+    expect(close).toBeLessThan(neutral)
+    expect(neutral).toBeCloseTo(20)
+    expect(blowout).toBeGreaterThan(neutral)
+  })
 })
 
 describe('applySeasonDecay', () => {
-  it('retains 60% of RR', () => {
-    expect(applySeasonDecay(1000)).toBe(600)
-    expect(applySeasonDecay(800)).toBe(480)
-    expect(applySeasonDecay(1500)).toBe(900)
+  it('retains 60% of the distance from the 800 RR baseline', () => {
+    expect(applySeasonDecay(1000)).toBe(920)
+    expect(applySeasonDecay(800)).toBe(800)
+    expect(applySeasonDecay(1500)).toBe(1220)
   })
 
-  it('does not go below 0', () => {
-    expect(applySeasonDecay(0)).toBe(0)
+  it('moves ratings below the baseline upward toward it', () => {
+    expect(applySeasonDecay(0)).toBe(320)
   })
 })

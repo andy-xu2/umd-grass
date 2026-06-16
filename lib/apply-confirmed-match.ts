@@ -61,6 +61,7 @@ export async function applyConfirmedMatchIncrementalTx(tx: Tx, matchId: string) 
       .values({
         userId,
         seasonId,
+        startingRr: startingRR,
         rr: startingRR,
         gamesPlayed: 0,
         wins: 0,

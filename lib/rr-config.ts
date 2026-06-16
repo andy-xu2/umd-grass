@@ -25,7 +25,9 @@ export const DEFAULT_RR_CONFIG: RrConfig = {
   baseStartingRr: 800,
   baseK: 40,
   scale: 400,
-  movMultiplier: 0,
+  // Small, bounded score-margin adjustment: close matches move less RR and
+  // decisive matches move more. See marginMultiplier() for the ±10% bounds.
+  movMultiplier: 0.05,
 
   placementGames: 5,
 

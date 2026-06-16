@@ -16,6 +16,7 @@ import { eq, desc } from 'drizzle-orm'
 import type { Season } from '@/lib/types'
 import { isAdmin } from '@/lib/utils'
 import { applySeasonDecay } from '@/lib/elo'
+import { DEFAULT_RR_CONFIG } from '@/lib/rr-config'
 
 export async function GET() {
   const supabase = await createClient()
@@ -91,25 +92,29 @@ export async function POST(request: Request) {
     if (prevStats.length > 0) {
       // Carry forward 60% of each player's RR into the new season.
       await tx.insert(seasonStats).values(
-        prevStats.map(s => ({
-          userId: s.userId,
-          seasonId: newSeason.id,
-          rr: applySeasonDecay(s.rr),
-          gamesPlayed: 0,
-          wins: 0,
-          losses: 0,
-        })),
+        prevStats.map(s => {
+          const startingRr = applySeasonDecay(s.rr)
+          return {
+            userId: s.userId,
+            seasonId: newSeason.id,
+            startingRr,
+            rr: startingRr,
+            gamesPlayed: 0,
+            wins: 0,
+            losses: 0,
+          }
+        }),
       )
     } else {
-      // First season ever — everyone starts at 0 RR.
-      // Placement games use a large K multiplier so skill levels spread quickly.
+      // First season ever — everyone starts at the configured RR baseline.
       const allUsers = await tx.select({ id: users.id }).from(users)
       if (allUsers.length > 0) {
         await tx.insert(seasonStats).values(
           allUsers.map(u => ({
             userId: u.id,
             seasonId: newSeason.id,
-            rr: 0,
+            startingRr: DEFAULT_RR_CONFIG.baseStartingRr,
+            rr: DEFAULT_RR_CONFIG.baseStartingRr,
             gamesPlayed: 0,
             wins: 0,
             losses: 0,

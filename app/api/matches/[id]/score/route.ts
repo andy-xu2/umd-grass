@@ -11,7 +11,7 @@ import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { isAdmin } from '@/lib/utils'
-import { recalculateSeasonRr } from '@/lib/recalculate-rr'
+import { recalculateSeasonRrTx } from '@/lib/recalculate-rr'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import type { SetScore } from '@/lib/types'
 
@@ -42,22 +42,30 @@ export async function PATCH(
   if (newTeam1Sets === newTeam2Sets) {
     return NextResponse.json({ error: 'Match cannot end in a tie' }, { status: 400 })
   }
-  const [match] = await db.select().from(matches).where(eq(matches.id, id))  
-  if (!match) {
-    return NextResponse.json({ error: 'Match not found' }, { status: 404 })
+  const result = await db.transaction(async tx => {
+    const [match] = await tx.select().from(matches).where(eq(matches.id, id))
+    if (!match) return { error: 'Match not found', status: 404 } as const
+    if (match.status !== 'CONFIRMED') {
+      return { error: 'Only confirmed matches can be edited', status: 400 } as const
+    }
+
+    await tx
+      .update(matches)
+      .set({
+        setScores: body.setScores,
+        team1Sets: newTeam1Sets,
+        team2Sets: newTeam2Sets,
+      })
+      .where(eq(matches.id, id))
+
+    await recalculateSeasonRrTx(tx, match.seasonId)
+    return { seasonId: match.seasonId } as const
+  })
+
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status })
   }
-  if (match.status !== 'CONFIRMED') {
-    return NextResponse.json({ error: 'Only confirmed matches can be edited' }, { status: 400 })
-  }
-  await db
-    .update(matches)
-    .set({
-      setScores: body.setScores,
-      team1Sets: newTeam1Sets,
-      team2Sets: newTeam2Sets,
-    })
-    .where(eq(matches.id, id))                     
-  await recalculateSeasonRr(match.seasonId)
-  invalidateLeaderboardCache(match.seasonId)
+
+  invalidateLeaderboardCache(result.seasonId)
   return NextResponse.json({ ok: true })
 }

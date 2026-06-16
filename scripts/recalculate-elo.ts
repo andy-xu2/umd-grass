@@ -111,7 +111,15 @@ async function main() {
 
     const [created] = await db
       .insert(seasonStats)
-      .values({ userId, seasonId, rr: startingRR, gamesPlayed: 0, wins: 0, losses: 0 })
+      .values({
+        userId,
+        seasonId,
+        startingRr: startingRR,
+        rr: startingRR,
+        gamesPlayed: 0,
+        wins: 0,
+        losses: 0,
+      })
       .returning()
 
     statsCache.set(cacheKey, created)

@@ -268,6 +268,7 @@ function freshStats(players, seasonId, previousStatsByUserId) {
       id: uuid(`season-stat-${seasonId}-${player.id}`),
       user_id: player.id,
       season_id: seasonId,
+      starting_rr: startingRr,
       rr: startingRr,
       games_played: 0,
       wins: 0,
