@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { tournamentGames } from '@/drizzle/schema'
 import { eq, and } from 'drizzle-orm'
+import { canManageTournament } from '@/lib/tournament-admin'
 
 export async function POST(
   _req: Request,
@@ -13,6 +14,10 @@ export async function POST(
 
   if (error || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  if (!(await canManageTournament(user.id))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { id } = await params

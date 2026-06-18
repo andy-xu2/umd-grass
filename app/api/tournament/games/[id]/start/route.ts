@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { tournamentGames } from '@/drizzle/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase-server'
 
 export async function POST(
@@ -14,9 +14,17 @@ export async function POST(
 
   const { id } = await params
 
-  await db.update(tournamentGames)
+  const [started] = await db.update(tournamentGames)
     .set({ status: 'live', liveScore: { team1: 0, team2: 0 }, scoredBy: user.id })
-    .where(eq(tournamentGames.id, id))
+    .where(and(eq(tournamentGames.id, id), eq(tournamentGames.status, 'pending')))
+    .returning({ id: tournamentGames.id })
+
+  if (!started) {
+    return NextResponse.json(
+      { error: 'Game is not available to score' },
+      { status: 409 },
+    )
+  }
 
   return NextResponse.json({ ok: true })
 }

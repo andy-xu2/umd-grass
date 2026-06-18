@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { tournamentGames } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import { createClient } from '@/lib/supabase-server'
+import { canManageTournament } from '@/lib/tournament-admin'
 
 export async function PATCH(
   req: Request,
@@ -29,6 +30,11 @@ export async function PATCH(
 
   if (!game) {
     return NextResponse.json({ error: 'Game not found' }, { status: 404 })
+  }
+
+  const canEdit = game.scoredBy === user.id || await canManageTournament(user.id)
+  if (!canEdit) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   await db
