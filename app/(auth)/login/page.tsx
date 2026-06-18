@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Volleyball, Eye, EyeOff, Loader2, Info } from 'lucide-react'
+import { Volleyball, Eye, EyeOff, Loader2, Info, House } from 'lucide-react'
 import { createClient } from '@/lib/supabase-browser'
 import { toast } from 'sonner'
 
@@ -44,7 +44,14 @@ function LoginContent() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4 pt-20 sm:pt-4">
+      <Button asChild variant="ghost" className="absolute left-4 top-4 h-11 px-3 sm:left-6 sm:top-6">
+        <Link href="/" aria-label="Back to public dashboard">
+          <House className="h-4 w-4" />
+          Home
+        </Link>
+      </Button>
+
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary">

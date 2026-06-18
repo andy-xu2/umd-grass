@@ -1,19 +1,16 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { and, asc, eq, or } from 'drizzle-orm'
-import { Bell, CalendarDays, Loader2, Trophy } from 'lucide-react'
-import { buildMatchesForUser } from '@/app/api/matches/route'
+import { and, eq } from 'drizzle-orm'
+import { CalendarDays, Loader2, Trophy } from 'lucide-react'
 import { DashboardPanel } from '@/components/dashboard-panel'
-import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
 import { PlayerCard, type PlayerCardUser } from '@/components/player-card'
+import { PublicRecentMatch } from '@/components/public-recent-match'
 import { RealtimeRouteRefresh } from '@/components/realtime-route-refresh'
-import { Button } from '@/components/ui/button'
-import { matches, seasons, seasonStats, users } from '@/drizzle/schema'
+import { seasons, seasonStats, users } from '@/drizzle/schema'
 import { db } from '@/lib/db'
-import { PLACEMENT_GAMES } from '@/lib/elo'
 import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
+import { fetchCachedPublicDashboardData } from '@/lib/public-dashboard'
 import { getSessionUser } from '@/lib/supabase-server'
 
 const realtimeTables = ['matches', 'season_stats'] as const
@@ -27,66 +24,24 @@ async function DashboardLeaderboard({ seasonId, userId }: { seasonId: string | n
   return <MiniLeaderboard entries={entries} currentUserId={userId} />
 }
 
-async function DashboardMatches({ userId }: { userId: string }) {
-  const [allMatches, placementRows] = await Promise.all([
-    buildMatchesForUser(userId, 50),
-    db
-      .select({ id: matches.id })
-      .from(matches)
-      .where(
-        and(
-          eq(matches.status, 'CONFIRMED'),
-          or(
-            eq(matches.team1Player1Id, userId),
-            eq(matches.team1Player2Id, userId),
-            eq(matches.team2Player1Id, userId),
-            eq(matches.team2Player2Id, userId),
-          ),
-        ),
-      )
-      .orderBy(asc(matches.playedAt), asc(matches.submittedAt))
-      .limit(PLACEMENT_GAMES),
-  ])
+async function DashboardRecentGames({ seasonId }: { seasonId: string | null }) {
+  if (!seasonId) {
+    return <EmptyMessage>No active season yet.</EmptyMessage>
+  }
 
-  const confirmedMatches = allMatches.filter(match => match.status === 'CONFIRMED').slice(0, 5)
-  const pendingToVerify = allMatches.filter(
-    match =>
-      match.status === 'PENDING' &&
-      (match.team2Player1.id === userId || match.team2Player2.id === userId),
-  )
-  const placementMatchIds = new Set(placementRows.map(row => row.id))
+  const { recentMatches } = await fetchCachedPublicDashboardData(seasonId)
 
   return (
     <div className="space-y-3">
-      {pendingToVerify.length > 0 && (
-        <Button asChild variant="outline" className="w-full justify-center border-primary/25 text-primary">
-          <Link href="/submit-match?tab=verify">
-            <Bell className="h-4 w-4" />
-            {pendingToVerify.length} pending verification{pendingToVerify.length !== 1 ? 's' : ''}
-          </Link>
-        </Button>
-      )}
-
-      {confirmedMatches.length > 0 ? (
-        confirmedMatches.map(match => (
-          <MatchCard
-            key={match.id}
-            match={match}
-            currentUserId={userId}
-            compact
-            isPlacement={placementMatchIds.has(match.id)}
-          />
-        ))
+      {recentMatches.length > 0 ? (
+        recentMatches.map(match => <PublicRecentMatch key={match.id} match={match} />)
       ) : (
         <div className="flex min-h-56 flex-col items-center justify-center text-center">
           <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
             <CalendarDays className="h-6 w-6" strokeWidth={1.7} />
           </span>
           <p className="text-sm font-semibold">No matches yet</p>
-          <p className="mt-1 text-sm text-muted-foreground">Submit your first match to get started.</p>
-          <Button asChild className="mt-5 min-w-36">
-            <Link href="/submit-match">Submit Match</Link>
-          </Button>
+          <p className="mt-1 text-sm text-muted-foreground">Confirmed results will appear here.</p>
         </div>
       )}
     </div>
@@ -164,9 +119,9 @@ export default async function DashboardPage() {
         <div className="flex h-full min-w-0 flex-col gap-5 xl:gap-6">
           <PlayerCard user={player} profileHref="/profile" />
 
-          <DashboardPanel title="Recent Games" href="/profile" linkLabel="View all">
+          <DashboardPanel title="Recent Games" href="/profile" linkLabel="View your games">
             <Suspense fallback={<SpinnerFallback height="min-h-56" />}>
-              <DashboardMatches userId={sessionUser.id} />
+              <DashboardRecentGames seasonId={activeSeason?.id ?? null} />
             </Suspense>
           </DashboardPanel>
         </div>
