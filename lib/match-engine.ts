@@ -5,7 +5,7 @@ import type { db } from '@/lib/db'
 import type { PlacementType, RrConfig } from '@/lib/rr-config'
 
 // Transaction callback receives PgTransaction, not the outer db instance
-type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 export type PlacementInfo = {
   kOverride: number | undefined
