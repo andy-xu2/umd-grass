@@ -260,10 +260,6 @@ export default function SubmitMatchPage() {
     : null
   const isEndingSoon = daysUntilEnd !== null && daysUntilEnd <= 7
 
-  function formatDisplayDate(iso: string) {
-    return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-  }
-
   function formatDisplayDateTime(iso: string) {
     return formatInTimeZone(
       iso,

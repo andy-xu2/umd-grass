@@ -1,278 +1,257 @@
 # AGENTS.md
 
-This file is the primary working guide for future coding agents in this repository. It reflects the current implementation, not the older project notes in CLAUDE.md.
+This is the primary implementation guide for coding agents in this repository. It describes the current codebase. `README.md` is a short setup overview; `CLAUDE.md` contains older project notes and is not authoritative where it mentions TOTP, hidden MMR, `isRevealed`, or `middleware.ts`.
 
-# Project Overview
+## Project overview
 
-- This is a Next.js 16 App Router application for UMD grass volleyball rankings.
-- The app tracks doubles matches, computes RR/ELO-style ranking changes, manages seasons, and exposes player-facing and admin-facing views.
-- Supabase provides authentication, storage, and Postgres; Drizzle ORM is used for database access; Tailwind CSS and shadcn/ui provide the UI layer.
-- The architecture is a hybrid of server components, client components, and route handlers. Server components load initial data, client components handle interaction, and API routes own mutations and business workflows.
+UMD Grass Rankings is a single-package Next.js PWA for doubles grass volleyball. Authenticated users can submit 2v2 matches, verify opponents' results, view seasonal and lifetime rankings, manage profiles and avatars, use court queues, and operate tournament scoring. Administrators can manage seasons, users, matches, and repair ranking data.
 
-# Repository Structure
+The application is full-stack:
 
-## Major folders
+- Next.js 16 App Router and React 19, with strict TypeScript.
+- Server Components for most initial reads; Client Components for forms and interactive views.
+- Next.js route handlers under `app/api/` for mutations and client-side data fetching.
+- Supabase Auth and Storage; Supabase-hosted PostgreSQL accessed through Drizzle ORM.
+- Tailwind CSS 4 and shadcn/Radix primitives.
+- Vitest for the small existing unit-test suite.
+- `@ducanh2912/next-pwa` for the service worker/offline fallback and Vercel Analytics in production.
 
-- [app/](app) contains the Next.js App Router tree.
-  - [app/(auth)/](app/(auth)) contains login, signup, verification, password reset, and auth-only layout pages.
-  - [app/(app)/](app/(app)) contains authenticated application pages such as dashboard, leaderboard, profile, players, submit-match, queue, admin, tournament, and tournament-admin.
-  - [app/api/](app/api) contains the server-side route handlers for matches, users, seasons, leaderboard, courts, tournaments, admin maintenance, and auth utilities.
-  - [app/auth/callback/](app/auth/callback) handles Supabase OAuth/email recovery callback exchange.
-  - [app/~offline/](app/~offline) provides the offline fallback page used by the PWA layer.
-- [components/](components) contains reusable UI and feature components.
-  - [components/ui/](components/ui) contains shadcn/ui primitives; treat these as framework-level building blocks.
-  - Feature components such as [components/navbar.tsx](components/navbar.tsx), [components/match-card.tsx](components/match-card.tsx), [components/player-card.tsx](components/player-card.tsx), [components/leaderboard-row.tsx](components/leaderboard-row.tsx), [components/mini-leaderboard.tsx](components/mini-leaderboard.tsx), [components/season-selector.tsx](components/season-selector.tsx), and [components/verification-card.tsx](components/verification-card.tsx) render the actual product surfaces.
-- [lib/](lib) contains business logic and shared infrastructure.
-  - [lib/db.ts](lib/db.ts) is the Drizzle/Postgres singleton.
-  - [lib/supabase-server.ts](lib/supabase-server.ts) and [lib/supabase-browser.ts](lib/supabase-browser.ts) create the Supabase clients for server and client use.
-  - [lib/elo.ts](lib/elo.ts), [lib/match-engine.ts](lib/match-engine.ts), [lib/apply-confirmed-match.ts](lib/apply-confirmed-match.ts), and [lib/recalculate-rr.ts](lib/recalculate-rr.ts) own the ranking logic.
-  - [lib/user-season.ts](lib/user-season.ts) centralizes current-season stat and rank lookup for profile-related pages and routes.
-  - [lib/leaderboard.ts](lib/leaderboard.ts) builds leaderboard rows and rank trends.
-  - [lib/tournament-admin.ts](lib/tournament-admin.ts) centralizes tournament permission checks.
-  - [lib/utils.ts](lib/utils.ts) contains generic helpers such as `cn()`, initials formatting, and admin ID checks.
-  - [lib/types.ts](lib/types.ts) defines the shared DTOs used across the app and API routes.
-- [drizzle/](drizzle) contains the schema and migrations.
-  - [drizzle/schema.ts](drizzle/schema.ts) is the source of truth for tables and enums.
-  - [drizzle/migrations/](drizzle/migrations) contains generated migration history.
-- [public/](public) contains static assets such as the manifest and icons.
-- [scripts/](scripts) contains maintenance scripts, including RR recalculation tooling.
-- [supabase/](supabase) contains SQL used for Supabase-side operational tasks, such as the match expiry cron job.
+There is no monorepo or npm workspace configuration.
 
-## How the layers interact
+## Repository map
 
-- Frontend pages are split into server components for data loading and client components for interactivity.
-- Route handlers under [app/api/](app/api) are the mutation boundary. They validate requests, authenticate users via Supabase, call business helpers, and persist to Postgres through Drizzle.
-- Business rules live in [lib/](lib), not in React components or route handlers unless the logic is truly request-specific.
-- Database access should go through [lib/db.ts](lib/db.ts) and Drizzle queries. Avoid scattering raw SQL or duplicating query shape logic across pages.
-- React components should remain presentation-focused and should not contain ranking math, permission policy, or database mutation rules.
+- `app/`: App Router entry point.
+  - `layout.tsx`: Geist fonts, theme provider, toaster, metadata, and production analytics.
+  - `page.tsx`: redirects `/` to `/login`.
+  - `(auth)/`: public login, signup, email OTP verification, forgot-password, and reset-password screens.
+  - `(app)/`: authenticated product pages. `layout.tsx` adds the responsive navbar. Main routes are `dashboard`, `leaderboard`, `profile`, `players`, `submit-match`, `queue`, `admin`, `tournament`, and `tournament-admin`.
+  - `api/`: route handlers grouped by matches, users, seasons, leaderboard, courts, tournaments, auth, permissions, and admin repair operations.
+  - `auth/callback/route.ts`: exchanges Supabase recovery/login codes and writes session cookies to the redirect response.
+  - `~offline/`: client-side PWA fallback.
+- `components/`: shared product components such as `MatchCard`, `VerificationCard`, `PlayerCard`, `LeaderboardRow`, `MiniLeaderboard`, `SeasonSelector`, `DashboardPanel`, and `Navbar`.
+  - `components/ui/`: shared shadcn/Radix primitives. Changes here affect the entire app; prefer composing a feature component unless a primitive itself needs to change.
+- `hooks/`: currently only the responsive `useIsMobile` hook.
+- `lib/`: shared infrastructure and business logic.
+  - `db.ts`: pooled Postgres/Drizzle singleton with `prepare: false` for Supabase's transaction pooler.
+  - `supabase-browser.ts`, `supabase-server.ts`: browser, cookie-backed server, service-role, and session helpers.
+  - `elo.ts`, `rr-config.ts`, `match-engine.ts`: pure RR math, tunable constants, placement rules, and per-match state transitions.
+  - `apply-confirmed-match.ts`, `recalculate-rr.ts`, `match-verification.ts`, `is-most-recent-match.ts`: atomic confirmation and chronological replay workflows.
+  - `leaderboard.ts`: cached server-side leaderboard query used by the dashboard/page.
+  - `ranks.ts`: rank-tier, placement visibility, and win-rate display helpers.
+  - `tournament-admin.ts`, `tournament-types.ts`, `utils.ts`: tournament authorization/models and generic UI helpers.
+  - `types.ts`: shared API/feature DTOs. Database row types generally come from Drizzle's inferred schema types.
+  - `resend.ts`, `blocked-email-domains.ts`: password-reset email delivery and signup email screening.
+- `drizzle/schema.ts`: current Drizzle schema and TypeScript source of truth for table shapes.
+- `drizzle/migrations/`: SQL migrations and Drizzle metadata; see the migration warning below before relying on them.
+- `scripts/seed-dev.js`: destructive deterministic development seed.
+- `scripts/recalculate-elo.ts`: standalone destructive replay script; it is not the production repair implementation and currently differs from `lib/recalculate-rr.ts`.
+- `supabase/expire-matches-cron.sql`: manual Supabase `pg_cron` setup for expiring pending matches.
+- `public/`: PWA manifest, icons, and static images. The production PWA build also emits service-worker assets here.
+- Root configuration: `proxy.ts`, `next.config.mjs`, `drizzle.config.ts`, `tsconfig.json`, `postcss.config.mjs`, `components.json`, `vercel.json`, `.env.example`, and `.nvmrc`.
 
-# Data Model
+No `.github/workflows/`, CI configuration, formatter configuration, or nested instruction files currently exist.
 
-## Important tables
+### Feature ownership quick map
 
-- `users` stores the public profile mirrored from Supabase Auth.
-- `seasons` stores season metadata and the active/inactive flag.
-- `season_stats` stores one row per user per season with RR, wins, losses, and games played.
-- `matches` stores submitted doubles matches, verification state, timestamps, and set scores.
-- `rr_changes` stores per-player RR deltas for confirmed matches.
-- `courts` stores queue groups for the court subsystem.
-- `court_queue_entries` stores queued teams per court.
-- `tournaments`, `tournament_pools`, `tournament_teams`, `tournament_games`, and `tournament_playoff_games` store the tournament workflow data.
+| Feature | Primary UI | API boundary | Shared logic/data |
+|---|---|---|---|
+| Authentication | `app/(auth)/*`, `app/auth/callback` | `/api/auth/forgot-password`, `/api/users` | Supabase helpers, `resend.ts`, `users` |
+| Profiles/players | `profile`, `players`, `players/[id]` | `/api/users/**` | `lib/types.ts`, `season_stats`, avatar Storage |
+| Matches and RR | `submit-match`, dashboard/profile match lists | `/api/matches/**` | `match-verification.ts`, match engine/replay helpers, `matches`, `rr_changes` |
+| Leaderboards | `leaderboard`, dashboard mini leaderboard | `/api/leaderboard` | `lib/leaderboard.ts`, `season_stats`, cache tags |
+| Seasons/admin | `admin` | `/api/seasons/**`, `/api/admin/**` | `applySeasonDecay()`, `recalculate-rr.ts` |
+| Court queues | `queue` | `/api/courts/**` | `courts`, `court_queue_entries` |
+| Tournament | `tournament`, `tournament-admin` | `/api/tournament/**` | `tournament-admin.ts`, `tournament-types.ts`, tournament tables |
 
-## Relationships
+`buildMatchesForUser()` currently lives in `app/api/matches/route.ts` and is reused by the dashboard and user-match route. Preserve that contract when making a narrow change; if reuse expands, move the query/serialization helper to `lib/` rather than adding more imports from a route module.
 
-- `season_stats.userId` references `users.id`.
-- `season_stats.seasonId` references `seasons.id`.
-- `matches.seasonId` references `seasons.id`.
-- `matches.submittedBy`, `team1Player1Id`, `team1Player2Id`, `team2Player1Id`, and `team2Player2Id` all reference `users.id`.
-- `rr_changes.matchId` references `matches.id`.
-- `rr_changes.userId` references `users.id`.
-- `courts.createdBy` references `users.id`.
-- `court_queue_entries.courtId` references `courts.id` and player IDs reference `users.id`.
-- Tournament tables reference `tournaments`, `tournament_pools`, and `tournament_teams` as expected.
+## Setup and commands
 
-## Core entities
+Use Node 20 (`.nvmrc`) and npm with the committed `package-lock.json`.
 
-- A match is always a 2v2 doubles match.
-- Team 1 is the submitting team; Team 2 is the opposing team that verifies the result.
-- RR is stored per player per season, not globally.
-- RR change history is preserved in `rr_changes`.
-- A season can be active or inactive, but only one active season should exist at a time.
+```bash
+nvm use
+npm ci
+cp .env.example .env.local
+npm run dev
+```
 
-## Season and ranking concepts
+Available commands:
 
-- RR is visible immediately. There is no hidden MMR state.
-- Placement is controlled by `PLACEMENT_GAMES` in [lib/elo.ts](lib/elo.ts) and the placement logic in [lib/match-engine.ts](lib/match-engine.ts).
-- Season transitions are handled by [app/api/seasons/route.ts](app/api/seasons/route.ts): the active season is closed, RR is decayed, and the new season is seeded.
-- RR decay uses [lib/elo.ts](lib/elo.ts) `applySeasonDecay()`.
+```bash
+npm run dev          # Next development server; PWA generation is disabled
+npm run build        # production build, TypeScript check, and PWA generation
+npm run start        # serve a completed production build
+npm test             # Vitest once
+npm run test:watch   # Vitest in watch mode
+npx tsc --noEmit     # explicit type check; there is no typecheck npm script
+npm run seed:dev     # destructive development database reset and seed
+```
 
-# Request Lifecycle
+`npm run lint` is declared as `eslint .`, but the current package has no ESLint dependency or configuration, so it fails with `eslint: command not found`. Do not claim lint passed until the lint toolchain is deliberately added or restored. There is no formatter command.
 
-## Authentication
+The production build fetches Geist from Google through `next/font`; a network-restricted environment may fail even when the code is valid. As of this guide's refresh, `npm test`, `npx tsc --noEmit`, and a network-enabled `npm run build` pass.
 
-1. Requests enter through the app routes and proxy layer.
-2. [proxy.ts](proxy.ts) refreshes Supabase sessions and redirects unauthenticated users away from protected pages.
-3. Server components use [lib/supabase-server.ts](lib/supabase-server.ts) to read the current session.
-4. Client components use [lib/supabase-browser.ts](lib/supabase-browser.ts) for browser auth interactions.
-5. Signup and login live under [app/(auth)/](app/(auth)). Signup verifies email, then [app/api/users/route.ts](app/api/users/route.ts) inserts the mirrored public user row.
-6. [app/auth/callback/route.ts](app/auth/callback/route.ts) exchanges recovery or login codes for a session and redirects into the app.
+## Routing and rendering patterns
 
-## Match submission
+- `proxy.ts` is the Next.js 16 request proxy (the replacement for the old `middleware.ts`). It refreshes the Supabase session with `auth.getUser()`, treats auth screens and `/api/auth` as public, protects other matched routes, and redirects signed-in users away from login/signup/forgot-password.
+- Proxy protection is not route authorization. Every API mutation must still call the server Supabase client, use `auth.getUser()`, and enforce ownership/admin policy inside the handler.
+- Read-heavy pages such as dashboard, leaderboard, profile, players, and admin query Drizzle in Server Components and pass serializable initial data to client views.
+- Interaction-heavy pages such as submit-match, queue, player detail, profile editing, admin, and tournament use Client Components and same-origin `fetch()` calls.
+- Next.js 16 dynamic route params are promises: use `{ params }: { params: Promise<{ id: string }> }` and `await params`.
+- Add a page at `app/(app)/<route>/page.tsx` when it belongs behind auth, and add a matching `loading.tsx` for a server-rendered page that can suspend. Public auth pages belong in `app/(auth)/`.
+- Add API endpoints as `app/api/<resource>/route.ts` or `app/api/<resource>/[id]/route.ts`. Export uppercase HTTP method functions and return `NextResponse.json`; current errors conventionally use `{ error: string }` with an appropriate status.
+- Keep initial reads server-side when possible. Introduce `'use client'` only for browser APIs, effects, local interaction state, or event handlers.
 
-1. The submit page is [app/(app)/submit-match/page.tsx](app/(app)/submit-match/page.tsx).
-2. It fetches the current user list, the user’s matches, and the active season.
-3. The form collects teammate, opponents, played date/time, and set scores.
-4. The client posts to [app/api/matches/route.ts](app/api/matches/route.ts).
-5. The route validates required fields, ensures all four players differ, verifies sets are valid, confirms an active season exists, computes `playedAt`, and inserts a `PENDING` match with an expiration timestamp.
+## Authentication, authorization, and Supabase
 
-## Match verification
+- Browser auth uses `createClient()` from `lib/supabase-browser.ts`.
+- Server Components may use `getSessionUser()` because `proxy.ts` already verified the request. API routes must use `createClient()` plus `supabase.auth.getUser()` for full verification.
+- `createAdminClient()` uses `SUPABASE_SERVICE_ROLE_KEY`, bypasses RLS, and must remain server-only.
+- Signup stores the display name in Supabase user metadata. After the eight-digit email signup OTP is verified, `POST /api/users` mirrors the auth user into the public `users` table. This is email OTP verification, not TOTP/MFA.
+- Password recovery is intentionally non-enumerating: `/api/auth/forgot-password` generates a Supabase recovery link with the service role and sends it through Resend; `app/auth/callback` exchanges the code.
+- Avatar upload uses the service role against the public `avatars` bucket, validates MIME type and a 5 MB size limit, stores files under `<user-id>/avatar.<ext>`, and mirrors the cache-busted public URL to `users.avatarUrl`.
+- General admin access comes from up to two UUIDs in private admin env vars via `isAdmin()`. Public variants exist only for cosmetic navbar visibility and are not authorization.
+- Tournament management allows general admins or `users.isTournamentAdmin` through `canManageTournament()`.
+- Some existing tournament mutations and `/api/admin/recalculate-rr` do not consistently enforce the intended permission helper. Treat this as a fragile legacy area: new or modified mutations must explicitly authenticate and authorize rather than copying a permissive handler or relying on a page guard.
+- User deletion is a soft delete in the public table, rejects their pending matches, then deletes the Supabase Auth account. Historical matches render the player as `Deleted User`.
 
-1. Pending matches appear in [app/(app)/submit-match/page.tsx](app/(app)/submit-match/page.tsx), [app/(app)/dashboard/page.tsx](app/(app)/dashboard/page.tsx), and [components/verification-card.tsx](components/verification-card.tsx).
-2. Verification is sent to [app/api/matches/[id]/verify/route.ts](app/api/matches/[id]/verify/route.ts).
-3. The route authenticates the user, loads the match, and checks that the user is either an admin or on the opposing team.
-4. Reject sets the match to `REJECTED`.
-5. Confirm sets the match to `CONFIRMED`, records who verified it, and updates RR by calling either [lib/apply-confirmed-match.ts](lib/apply-confirmed-match.ts) or [lib/recalculate-rr.ts](lib/recalculate-rr.ts) depending on whether the match is the newest confirmed match.
+Authorization boundaries to preserve:
 
-## RR/ELO calculation
+| Operation | Required policy |
+|---|---|
+| Read protected application data | Authenticated user; API handlers should verify locally when they expose user-specific data |
+| Edit own profile, email, password, or avatar | Authenticated user operating on `user.id` |
+| Submit a match | Authenticated user; submitter is Team 1 Player 1 |
+| Confirm/reject a match | Team 2 participant or general admin |
+| Rename/delete users, manage seasons/RR, edit confirmed matches | General admin via `isAdmin()` |
+| Open tournament-admin page or perform tournament-admin actions | General admin or `isTournamentAdmin` via `canManageTournament()` |
+| Create/manage courts and queue entries | Currently any authenticated user; `createdBy` is recorded but ownership is not enforced |
+| Start/live-score tournament games | Current UI allows an authenticated scorer workflow, but endpoint ownership checks are incomplete |
 
-1. Core math lives in [lib/elo.ts](lib/elo.ts).
-2. Match-by-match mutation logic lives in [lib/match-engine.ts](lib/match-engine.ts).
-3. Incremental application for a single confirmed match lives in [lib/apply-confirmed-match.ts](lib/apply-confirmed-match.ts).
-4. Full season recomputation lives in [lib/recalculate-rr.ts](lib/recalculate-rr.ts).
-5. RR deltas are persisted in `season_stats` and `rr_changes` inside transactions.
+Do not silently tighten or loosen the last two policies while doing unrelated work. If a task changes them, make the policy explicit and update every associated route and UI control together.
 
-## Leaderboard generation
+## Database and data model
 
-1. The server route is [app/api/leaderboard/route.ts](app/api/leaderboard/route.ts).
-2. Shared row building logic is in [lib/leaderboard.ts](lib/leaderboard.ts).
-3. Season leaderboard rows are pulled from `season_stats` joined with `users`, filtered to ranked players only, and sorted by RR.
-4. Trend data is derived from the latest `rr_changes` row for each player.
-5. The dashboard uses [lib/leaderboard.ts](lib/leaderboard.ts) through [app/(app)/dashboard/page.tsx](app/(app)/dashboard/page.tsx), and the leaderboard page uses the same data model through [app/(app)/leaderboard/page.tsx](app/(app)/leaderboard/page.tsx).
+Application data is queried directly with Drizzle/Postgres, not through the Supabase REST client. Keep DB access in Server Components, route handlers, or focused `lib/` helpers; never import `lib/db.ts` into a Client Component.
 
-## User profile loading
+Core tables:
 
-1. The profile page is [app/(app)/profile/page.tsx](app/(app)/profile/page.tsx).
-2. It loads the current user, all seasons, and all `season_stats` rows for that user.
-3. It deduplicates season rows by season and calculates lifetime totals client-side on the server component.
-4. Current-season rank is calculated from RR against other ranked players.
-5. The player detail page [app/(app)/players/[id]/page.tsx](app/(app)/players/[id]/page.tsx) loads the public profile and match history for any user.
-6. Match history for arbitrary users comes from [app/api/users/[id]/matches/route.ts](app/api/users/[id]/matches/route.ts), which reuses [app/api/matches/route.ts](app/api/matches/route.ts) `buildMatchesForUser()`.
+- `users`: public mirror of Supabase Auth UUIDs, profile data, soft-delete flag, and tournament-admin flag.
+- `seasons`: season dates and active state.
+- `season_stats`: one intended row per user/season with RR, games, wins, and losses.
+- `matches`: a stored-season 2v2 result, point scores, derived set wins, played/submitted/expiry times, and verification state.
+- `rr_changes`: one row per player per confirmed match, including delta and before/after RR.
+- `courts`, `court_queue_entries`: named queues and ordered two-player entries.
+- `tournaments`, `tournament_pools`, `tournament_teams`, `tournament_games`, `tournament_playoff_games`: AA/BB pool and playoff scoring.
 
-## Tournament flow
+TypeScript property names are camelCase while SQL column names are snake_case. Match statuses are uppercase (`PENDING`, `CONFIRMED`, `REJECTED`, `EXPIRED`); tournament game statuses are lowercase (`pending`, `live`, `complete`). Preserve those exact enum conventions.
 
-1. The tournament page is [app/(app)/tournament/page.tsx](app/(app)/tournament/page.tsx), which renders the tournament client for authenticated users.
-2. The tournament admin page is [app/(app)/tournament-admin/page.tsx](app/(app)/tournament-admin/page.tsx), which gates access through [lib/tournament-admin.ts](lib/tournament-admin.ts).
-3. Pool and game data is served by [app/api/tournament/pools/route.ts](app/api/tournament/pools/route.ts).
-4. Pool games move through live/score/admin-score/reset/cancel/make-current endpoints under [app/api/tournament/games/](app/api/tournament/games).
-5. Playoff games move through live/score/admin-score/reset/cancel/start endpoints under [app/api/tournament/playoffs/](app/api/tournament/playoffs).
-6. The tournament data model is stored in `tournaments`, `tournament_pools`, `tournament_teams`, `tournament_games`, and `tournament_playoff_games`.
+Important integrity gaps in the current schema:
 
-## Court queue flow
+- There is no database unique constraint on `(season_stats.user_id, season_stats.season_id)`. Several reads and repair helpers defensively deduplicate rows. Avoid creating duplicates and consider a constraint only as an explicit, data-migrated schema change.
+- "Only one active season" is an application invariant, not a database constraint.
+- Queue positions and "a player appears in only one queue" are application checks, not protected by constraints.
 
-1. The queue page is [app/(app)/queue/page.tsx](app/(app)/queue/page.tsx).
-2. It loads courts and users from [app/api/courts/route.ts](app/api/courts/route.ts).
-3. Creating a court posts to [app/api/courts/route.ts](app/api/courts/route.ts).
-4. Joining a queue posts to [app/api/courts/[courtId]/queue/route.ts](app/api/courts/[courtId]/queue/route.ts).
-5. Advancing the queue posts to [app/api/courts/[courtId]/next/route.ts](app/api/courts/[courtId]/next/route.ts).
-6. Queue entries are stored in `court_queue_entries` and ordered by `position`.
+## Ranking and match invariants
 
-# Core Business Logic
+Ranking history is order-dependent. Treat the following as one business workflow:
 
-- RR calculation lives in [lib/elo.ts](lib/elo.ts), [lib/match-engine.ts](lib/match-engine.ts), [lib/apply-confirmed-match.ts](lib/apply-confirmed-match.ts), and [lib/recalculate-rr.ts](lib/recalculate-rr.ts).
-- Match processing occurs in [app/api/matches/route.ts](app/api/matches/route.ts) and [app/api/matches/[id]/verify/route.ts](app/api/matches/[id]/verify/route.ts).
-- Leaderboard generation occurs in [lib/leaderboard.ts](lib/leaderboard.ts) and [app/api/leaderboard/route.ts](app/api/leaderboard/route.ts).
-- User stats are calculated in [app/(app)/profile/page.tsx](app/(app)/profile/page.tsx), [app/api/users/me/route.ts](app/api/users/me/route.ts), [app/api/users/[id]/route.ts](app/api/users/[id]/route.ts), and [app/api/leaderboard/route.ts](app/api/leaderboard/route.ts).
-- Permission checks happen in [lib/utils.ts](lib/utils.ts) `isAdmin()`, [lib/tournament-admin.ts](lib/tournament-admin.ts) `canManageTournament()`, [proxy.ts](proxy.ts), [app/(app)/admin/page.tsx](app/(app)/admin/page.tsx), and [app/(app)/tournament-admin/page.tsx](app/(app)/tournament-admin/page.tsx).
+1. `POST /api/matches` validates four distinct players and non-tied, non-negative set scores, interprets the entered time in `America/New_York`, stores the active `seasonId`, and creates a seven-day `PENDING` match.
+2. Only a player on Team 2 or a general admin may verify. Team 1 is the submitting side.
+3. `verifyMatch()` atomically claims a pending match. Rejection only changes status. Confirmation changes status and applies RR in the same database transaction.
+4. If the match is newest by `(playedAt, submittedAt)`, apply it incrementally; otherwise replay the stored season chronologically.
+5. Persist player deltas in `rr_changes` and current aggregates in `season_stats`.
 
-# Important Files
+Never:
 
-| file | purpose | when to modify it |
-|---|---|---|
-| [drizzle/schema.ts](drizzle/schema.ts) | Database schema and table definitions | When adding or changing tables, columns, enums, or relationships |
-| [lib/db.ts](lib/db.ts) | Drizzle/Postgres singleton | When changing database connection behavior |
-| [lib/supabase-server.ts](lib/supabase-server.ts) | Server-side Supabase clients and session helpers | When auth/session behavior changes on the server |
-| [lib/supabase-browser.ts](lib/supabase-browser.ts) | Client-side Supabase client | When client auth behavior changes |
-| [lib/elo.ts](lib/elo.ts) | Core RR math and season decay | When ranking formulas change |
-| [lib/match-engine.ts](lib/match-engine.ts) | Per-match RR application and placement logic | When match delta rules change |
-| [lib/apply-confirmed-match.ts](lib/apply-confirmed-match.ts) | Incremental match confirmation update | When confirmed-match processing changes |
-| [lib/recalculate-rr.ts](lib/recalculate-rr.ts) | Full-season recomputation | When the repair/rebuild flow changes |
-| [lib/user-season.ts](lib/user-season.ts) | Shared current-season stat and rank lookup | When profile/rank lookup rules change |
-| [lib/leaderboard.ts](lib/leaderboard.ts) | Leaderboard query logic and rank trends | When leaderboard output changes |
-| [lib/utils.ts](lib/utils.ts) | Shared helpers and admin checks | When permission logic or helper behavior changes |
-| [lib/tournament-admin.ts](lib/tournament-admin.ts) | Tournament permission policy | When tournament access rules change |
-| [app/api/matches/route.ts](app/api/matches/route.ts) | Match submission and match-list query logic | When match submission or match serialization changes |
-| [app/api/matches/[id]/verify/route.ts](app/api/matches/[id]/verify/route.ts) | Match verification workflow | When confirmation/rejection rules change |
-| [app/api/leaderboard/route.ts](app/api/leaderboard/route.ts) | Leaderboard API endpoint | When leaderboard response shape changes |
-| [app/api/seasons/route.ts](app/api/seasons/route.ts) | Season listing and season creation | When season lifecycle changes |
-| [app/api/users/route.ts](app/api/users/route.ts) | Public user list and public user row creation | When user provisioning or list shape changes |
-| [app/api/users/me/route.ts](app/api/users/me/route.ts) | Current-user profile update and read | When profile edit behavior changes |
-| [app/api/users/[id]/route.ts](app/api/users/[id]/route.ts) | Public profile read and admin edit/delete | When public profile or admin user management changes |
-| [app/(app)/dashboard/page.tsx](app/(app)/dashboard/page.tsx) | Main authenticated landing page | When dashboard composition changes |
-| [app/(app)/leaderboard/page.tsx](app/(app)/leaderboard/page.tsx) | Leaderboard page | When leaderboard UI changes |
-| [app/(app)/profile/page.tsx](app/(app)/profile/page.tsx) | Profile page and lifetime summary | When profile UI or aggregate stats change |
-| [app/(app)/submit-match/page.tsx](app/(app)/submit-match/page.tsx) | Match submission and verification UI | When the match workflow UI changes |
-| [app/(app)/queue/page.tsx](app/(app)/queue/page.tsx) | Court queue UI | When queue behavior changes |
-| [app/(app)/admin/admin-client.tsx](app/(app)/admin/admin-client.tsx) | Admin maintenance UI | When admin workflows change |
-| [app/(app)/tournament/tournament-client.tsx](app/(app)/tournament/tournament-client.tsx) | Tournament user experience | When tournament scoring flows change |
-| [app/(app)/tournament-admin/tournament-admin-client.tsx](app/(app)/tournament-admin/tournament-admin-client.tsx) | Tournament admin controls | When tournament admin flows change |
+- expose an RR delta for a pending match;
+- calculate RR on submission;
+- use the currently active season when processing an existing match—use `match.seasonId`;
+- split match confirmation/status and RR mutation across transactions;
+- make confirmation non-idempotent;
+- change chronological ordering in only one of the incremental/replay helpers.
 
-# Architectural Principles
+The authoritative production path is `rr-config.ts` + `match-engine.ts` + `apply-confirmed-match.ts` + `recalculate-rr.ts`. Team rating is the average of the two players, placement and outcome multipliers come from `DEFAULT_RR_CONFIG`, deltas are rounded per player, and RR is floored at zero. `PLACEMENT_GAMES` is five, but five is also duplicated in some UI/query code; coordinate all call sites if it changes.
 
-- Keep business logic in [lib/](lib) and keep React components focused on rendering and user interaction.
-- Keep database access in Drizzle-based route handlers or server components, not inside generic UI components.
-- Keep request validation and permission checks close to the route boundary, then hand off to shared helpers for the actual rule implementation.
-- Prefer server components for read-heavy pages and client components only where interactivity is required.
-- Keep API contracts stable. When a response shape changes, update the shared types in [lib/types.ts](lib/types.ts).
-- Reuse shared helpers instead of copying query shapes or ranking calculations into multiple pages.
+Starting RR is currently context-dependent: the config/schema default is 800, first-ever season creation explicitly seeds users at 0, existing users are seeded at 60% of prior RR, and both incremental processing and season replay use 800 when there is no prior-season row. Do not "simplify" this without a requested behavior change and tests.
 
-# Refactoring Guidelines
+Leaderboard reads use Next.js cache tags (`leaderboard-<seasonId>` and `leaderboard-lifetime`) with a minutes lifetime. Match verification revalidates both. Any other mutation that changes rank-visible data must consider the same invalidation.
 
-- Prefer extracting shared helpers over rewriting feature areas.
-- If two pages or routes need the same query shape, create one shared helper in [lib/](lib) and call it from both places.
-- Move ranking, season, and permission rules into shared modules before they spread into route handlers.
-- Keep request handlers thin: validate, authorize, call helper, persist, return response.
-- Keep React components presentation-only. If a component starts doing business logic, move that logic into [lib/](lib) or the nearest route helper.
-- When updating a workflow, update the shared DTOs in [lib/types.ts](lib/types.ts) alongside the route and the UI.
+### Other feature lifecycles
 
-# Testing Checklist
+- Season creation is one transaction in `POST /api/seasons`: close the active season, create the new active row, and seed all relevant `season_stats`. Season date/name edits use `/api/seasons/[id]`; direct player RR edits use `/api/seasons/[id]/mmr`.
+- Profile and player APIs accept `?seasonId=` and otherwise resolve the active season. Lifetime profile totals deduplicate accidental season-stat duplicates and sum season aggregates; lifetime leaderboard ordering is wins first, then peak RR.
+- Seasonal leaderboard membership requires at least five games and excludes soft-deleted users. A current user can therefore have stats and RR but no leaderboard rank during placement.
+- Court reads serialize each court with a nested, position-ordered queue. Joining rejects either player if already queued anywhere; advancing removes the first team and renumbers the remaining entries.
+- Tournament clients load pool and playoff data separately for `AA` or `BB`. Both currently hardcode tournament UUID `00000000-0000-0000-0000-000000000001`; there is no tournament creation/selection UI or API.
+- Pool games record `scoredBy`; playoff games do not. Pool and playoff endpoints are parallel but not identical, so inspect both branches before changing shared scoring behavior.
 
-Automated tests are limited, so manually verify the major flows after changes:
+## Shared code and UI conventions
 
-- Sign up, log in, verify email, and confirm the session persists.
-- Submit a match and confirm it appears as pending for the submitting team.
-- Verify a match from the opposing team and confirm RR updates on the dashboard, leaderboard, profile, and player pages.
-- Reject a pending match and confirm it disappears from the verification flow.
-- Create a season as an admin and confirm RR decay and leaderboard reset behavior.
-- Edit a profile photo and confirm the avatar updates everywhere.
-- Use the court queue to create a court, join the queue, advance the queue, and remove entries.
-- Exercise tournament scoring and confirm the client and admin pages stay in sync with the API routes.
-- Run `npm test`, `npm run lint`, and `npm run build` before shipping changes.
+- Put reusable business rules, query workflows, and permission checks in `lib/`; route handlers should authenticate, validate, authorize, call the helper, and serialize.
+- When a response shape is shared by a route and UI, define/update it in `lib/types.ts`.
+- Use Drizzle-inferred types for database rows and the exported `Tx` type from `lib/match-engine.ts` for helpers that participate in a transaction.
+- Reuse `MatchCard`, `PlayerCard`, `LeaderboardRow`, `VerificationCard`, `SeasonSelector`, and `DashboardPanel` instead of creating page-local versions of the same sports entity.
+- Use `cn()` for Tailwind class composition, `getInitials()` for avatars, and `lib/ranks.ts` for tier/placement presentation.
+- Styling is Tailwind 4 with theme tokens declared in `app/globals.css`. Preserve light/dark variables, responsive mobile-first layout, visible focus states, and reduced-motion behavior.
+- Async UI needs a loading/disabled state, an empty or error state, and user feedback; the current app generally uses skeletons/spinners and Sonner toasts.
+- Use `@/` imports, which map to the repository root.
+- Files use kebab-case; React components and exported types use PascalCase; functions/variables use camelCase. Feature client files commonly use `<feature>-client.tsx`.
 
-# Agent Instructions
+## Tests and where new code goes
 
-- Preserve behavior.
-- Make small, isolated commits.
-- Avoid changing business logic unless requested.
-- Keep API contracts stable.
-- Prefer refactoring over rewriting.
-- Run build, lint, and typecheck after changes.
-- Explain architectural decisions before large refactors.
+The only automated tests currently are `lib/elo.test.ts` (14 Vitest tests). Vitest uses default discovery; there is no custom config or global setup.
 
-## Change Strategy
+- Add pure business-logic tests beside the module as `*.test.ts`.
+- Ranking, placement, season-transition, verification, and chronological replay changes require automated regression coverage.
+- There is no route, component, browser, or database integration harness. For changed workflows, record focused manual verification rather than claiming nonexistent automated coverage.
+- New shared components go in `components/`; reusable primitives in `components/ui/`; shared browser hooks in `hooks/`; database/business helpers in `lib/`; schema changes in `drizzle/schema.ts` plus a migration.
 
-- Do not combine correctness fixes, architectural refactors, and visual redesigns
-  in the same change.
-- Prefer one feature boundary per change.
-- Before moving code, characterize current behavior with tests.
-- Refactors must preserve response shapes unless the task explicitly changes them.
-- Avoid introducing abstractions used by only one simple call site.
-- Do not replace working server components with client components without a
-  demonstrated interaction requirement.
+Targeted manual checks:
 
-## Transaction Rules
+- Auth: signup OTP creates the public profile, login survives navigation, protected routes redirect when signed out, and recovery reaches reset-password.
+- Match submission: invalid/tied scores and duplicate players fail; a valid result stays pending and shows no RR delta.
+- Verification: Team 1 cannot verify, Team 2 can confirm/reject, repeated verification cannot apply RR twice, and confirming an older played date triggers a correct replay.
+- Ranking: dashboard, seasonal/lifetime leaderboard, profile, and player detail agree after a confirmed match or admin edit.
+- Season change: the old season closes, new rows receive the intended starting RR, placement counts reset, and selectors show both seasons.
+- Profile/avatar: upload, replacement, deletion, email/password changes, and soft-deleted-player rendering remain consistent.
+- Queue: create, join, global duplicate prevention, edit/remove, advance, and position renumbering work on mobile.
+- Tournament: test both divisions and both pool/playoff branches, including regular scoring, scorer edits, cancel/reset, and tournament-admin actions.
 
-- Match status changes and their associated RR mutations must be atomic.
-- All confirmed-match processing must use the match's stored seasonId.
-- Ranking helpers participating in a larger workflow should accept a transaction
-  context rather than opening independent transactions.
-- Match confirmation must be idempotent.
-- Database constraints should protect assumptions relied upon by application code.
+## Environment and operations
 
-## UI Rules
+Copy `.env.example` to `.env.local`; both are loaded by Drizzle tooling, while Next also loads supported env files.
 
-- Design mobile-first.
-- Avoid nested cards.
-- Use cards only for elevated or independently actionable content.
-- Every async interface must provide loading, empty, error, and success states.
-- Preserve keyboard navigation and visible focus states.
-- Shared sports entities should use shared components rather than page-local markup.
+- `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`: browser-safe Supabase configuration.
+- `SUPABASE_SERVICE_ROLE_KEY`: server-only Auth/Storage administration.
+- `DATABASE_URL`: Supabase Postgres pooler connection string.
+- `NEXT_PUBLIC_APP_URL`: absolute callback/email URLs.
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`: password-reset delivery.
+- `ADMIN_USER_ID`, `ADMIN_USER_ID_2`: preferred server-side admin UUIDs.
+- `NEXT_PUBLIC_ADMIN_USER_ID`, `NEXT_PUBLIC_ADMIN_USER_ID_2`: optional navbar-only fallbacks; never use as the only server authorization check.
 
-## Definition of Done
+Never expose the service-role key, database URL, or Resend key to Client Components or logs. Any new client-visible variable must deliberately use the `NEXT_PUBLIC_` prefix.
 
-- Tests pass.
-- Type checking passes.
-- Linting passes.
-- Production build passes.
-- New business logic has automated tests.
-- Changed workflows have been manually exercised.
-- No unrelated formatting or restructuring is included.
+`npm run seed:dev` truncates every application table with cascade and inserts deterministic users, seasons, matches, RR history, queues, and tournament data. It refuses `NODE_ENV=production`/`VERCEL_ENV=production`, requires a valid `ADMIN_USER_ID`, and verifies that `DATABASE_URL` and `NEXT_PUBLIC_SUPABASE_URL` identify the same Supabase project. It seeds public `users` rows, not login-capable Supabase Auth accounts. Never run it against shared or production data.
+
+## Migrations, deployment, and fragile operations
+
+- Change `drizzle/schema.ts`, then use the installed Drizzle CLI (there are no npm wrappers), for example `npx drizzle-kit generate` and `npx drizzle-kit migrate`. Inspect generated SQL before applying it.
+- The checked-in migration history is inconsistent: the journal references a missing migration name, there are duplicate numeric prefixes, and current tournament/schema fields are not fully represented by the SQL files. Do not assume a fresh migration replay matches production. Reconcile the journal, SQL, actual target database, and schema as part of any migration task; do not rewrite old applied migrations casually.
+- `supabase/expire-matches-cron.sql` is run manually in the Supabase SQL editor and is not part of Drizzle migrations.
+- `scripts/recalculate-elo.ts` deletes/rebuilds ranking data and differs from the production replay helper in ordering and formula details. Prefer the in-app `lib/recalculate-rr.ts` workflow; do not run the standalone script without auditing and explicit intent.
+- The app targets Vercel. `vercel.json` sets security headers, CSP, and service-worker caching headers. `next.config.mjs` enables Cache Components, unoptimized Next images, and the production PWA runtime caches. Preserve `/~offline`, `public/manifest.json`, and service-worker header behavior when changing deployment/PWA configuration.
+- PWA runtime caching includes API and authenticated pages. Be careful not to expand caching of sensitive responses without considering offline data exposure and staleness.
+
+## Before completing a change
+
+- Keep the change within one feature boundary; do not mix a fix, refactor, and visual redesign.
+- Inspect the relevant page, route, shared helper, schema, and DTO together before changing a workflow.
+- Preserve API response shapes unless the task explicitly changes them.
+- For mutations, verify authentication, authorization, validation, transaction boundaries, stored `seasonId`, idempotency, chronological replay, and cache invalidation.
+- For schema work, include and inspect a migration and account for existing duplicate data/incomplete migration history.
+- Add tests for new business logic; manually exercise affected auth, match, season, profile/avatar, queue, or tournament states as applicable.
+- Run `npm test`, `npx tsc --noEmit`, and `npm run build`. Run `npm run lint` only after acknowledging or fixing the current missing ESLint toolchain.
+- Check loading, empty, error, success, keyboard/focus, mobile, and dark-mode behavior for UI changes.
+- Review `git diff` and `git status`; leave unrelated files untouched and do not include generated build output.

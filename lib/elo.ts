@@ -1,12 +1,4 @@
-export const DEFAULT_K = 40
-
-/**
- * Minimum RR a player can gain on a match win.
- * The soft gain cap near 3000 RR would otherwise reduce wins to 1-2 RR,
- * making high-level play feel pointless. This floor keeps it meaningful.
- * Only applies when the ELO math itself expected a positive gain (base > 0).
- */
-export const MIN_WIN_GAIN = 5
+import type { RrConfig } from '@/lib/rr-config'
 
 /**
  * Maximum RR a player can reach during initial career placement.
@@ -17,17 +9,8 @@ export const DEFAULT_PLACEMENT_RR_CAP = 1500
 export const PLACEMENT_GAMES = 5
 
 /**
- * ELO scale factor. Controls how steeply expected score diverges with RR difference.
- * Higher values = gentler curve = less harsh gains/losses for mismatched opponents.
+ * Expected score for one team against another.
  */
-export const ELO_SCALE = 1800
-
-/**
- * Expected score for a player against the average of two opponents.
- * opponent_avg_rr = (oppRR1 + oppRR2) / 2
- */
-import type { RrConfig } from '@/lib/rr-config'
-
 export function expectedScore(teamARating: number, teamBRating: number, scale: number): number {
   return 1 / (1 + Math.pow(10, (teamBRating - teamARating) / scale))
 }
@@ -38,8 +21,8 @@ export function marginMultiplier(scoreDiff: number | undefined, movMultiplier: n
 }
 
 /**
- * Exact same core math as the Python test:
- * delta = K * mov_mult * (actual - expected)
+ * Computes the unrounded RR delta before per-result multipliers and the
+ * non-negative RR floor are applied by the match engine.
  */
 export function calculateRrChange(
   teamARating: number,
@@ -56,8 +39,7 @@ export function calculateRrChange(
 }
 
 /**
- * Keep this only if you still want cross-season decay elsewhere.
- * It is NOT used by the Python test path below.
+ * Retains 60% of a player's RR between seasons.
  */
 export function applySeasonDecay(rr: number): number {
   return Math.max(0, Math.round(rr * 0.6))

@@ -7,47 +7,17 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Loader2, Play, Plus, Minus, Trophy } from 'lucide-react'
+import {
+  TOURNAMENT_ID,
+  type TournamentDivision as Division,
+  type TournamentGame as Game,
+  type TournamentLiveScore as LiveScore,
+  type TournamentPlayoffGame as PlayoffGame,
+  type TournamentPool as Pool,
+  type TournamentTeam as Team,
+} from '@/lib/tournament-types'
 
-const TOURNAMENT_ID = '00000000-0000-0000-0000-000000000001'
-
-type Division = 'AA' | 'BB'
 type View = 'pool' | 'playoffs'
-type GameStatus = 'pending' | 'live' | 'complete'
-
-type SetScore = {
-  team1: number
-  team2: number
-}
-
-type LiveScore = {
-  team1: number
-  team2: number
-}
-
-type Pool = {
-  id: string
-  tournamentId: string
-  division: Division
-  name: string
-}
-
-type Team = {
-  id: string
-  poolId: string
-  name: string
-}
-
-type Game = {
-  id: string
-  poolId: string
-  team1Id: string
-  team2Id: string
-  status: GameStatus
-  setScores: SetScore[]
-  liveScore: LiveScore | null
-  orderIndex: number
-  scoredBy: string | null
-}
 
 type Standing = {
   team: Team
@@ -70,22 +40,6 @@ type PlaceholderSlot = {
   placeholder: string
 }
 
-type PlayoffGame = {
-  id: string
-  tournamentId: string
-  division: Division
-  round: string
-  label: string
-  team1Id: string | null
-  team2Id: string | null
-  team1Source: string | null
-  team2Source: string | null
-  status: GameStatus
-  setScores: SetScore[]
-  liveScore: LiveScore | null
-  orderIndex: number
-}
-
 const workTeamByOrder: Record<number, number> = {
   1: 4,
   2: 3,
@@ -95,7 +49,8 @@ const workTeamByOrder: Record<number, number> = {
   6: 3,
 }
 
-export default function TournamentPage({ currentUserId }: { currentUserId: string | null }) {  const [division, setDivision] = useState<Division>('AA')
+export default function TournamentPage({ currentUserId }: { currentUserId: string | null }) {
+  const [division, setDivision] = useState<Division>('AA')
   const [view, setView] = useState<View>('pool')
   const [pools, setPools] = useState<Pool[]>([])
   const [teams, setTeams] = useState<Team[]>([])
