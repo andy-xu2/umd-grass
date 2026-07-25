@@ -10,9 +10,9 @@ import { TrendingUp, TrendingDown } from 'lucide-react'
 import type { LeaderboardEntry } from '@/lib/types'
 
 function getRankStyle(rank: number) {
-  if (rank === 1) return { bg: 'bg-yellow-500/20', text: 'text-yellow-500' }
-  if (rank === 2) return { bg: 'bg-slate-400/20', text: 'text-slate-400' }
-  if (rank === 3) return { bg: 'bg-amber-600/20', text: 'text-amber-600' }
+  if (rank === 1) return { bg: 'bg-amber-100 dark:bg-amber-400/15', text: 'text-amber-800 dark:text-amber-300' }
+  if (rank === 2) return { bg: 'bg-slate-100 dark:bg-slate-300/15', text: 'text-slate-800 dark:text-slate-200' }
+  if (rank === 3) return { bg: 'bg-orange-100 dark:bg-orange-400/15', text: 'text-orange-800 dark:text-orange-300' }
   return { bg: 'bg-secondary', text: 'text-muted-foreground' }
 }
 
@@ -39,15 +39,24 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
 
   if (entries.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center py-12 text-sm text-muted-foreground">
-        No players ranked yet this season.
+      <div className="flex min-h-64 items-center justify-center py-12 text-center text-sm text-muted-foreground">
+        No players are ranked yet this season.
       </div>
     )
   }
 
   return (
-    <div ref={containerRef} className="overflow-y-auto pr-1" style={{ maxHeight: '420px' }}>
-      <div className="space-y-1">
+    <div
+      ref={containerRef}
+      className="max-h-[430px] overflow-x-hidden overflow-y-auto [scrollbar-width:none] xl:min-h-0 xl:max-h-none xl:flex-1 [&::-webkit-scrollbar]:hidden"
+    >
+      <div>
+        <div className="grid grid-cols-[32px_minmax(0,1fr)_48px_36px] gap-1 border-b px-1 pb-3 text-[11px] font-medium text-muted-foreground sm:grid-cols-[48px_minmax(0,1fr)_72px_56px] sm:gap-2 sm:px-2 sm:text-xs">
+          <span className="text-center">#</span>
+          <span>Player</span>
+          <span className="text-right">RR</span>
+          <span className="text-right">±</span>
+        </div>
         {entries.map(entry => {
           const isMe = entry.userId === currentUserId
           const tier = getSkillTier(entry.rr)
@@ -60,51 +69,49 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
               href={href}
               ref={isMe ? myRowRef : undefined}
               className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors',
+                'grid grid-cols-[32px_minmax(0,1fr)_48px_36px] items-center gap-1 border-b border-border/75 px-1 py-3 transition-colors last:border-0 sm:grid-cols-[48px_minmax(0,1fr)_72px_56px] sm:gap-2 sm:px-2',
                 isMe
-                  ? 'bg-primary/10 border border-primary/30 hover:bg-primary/15'
-                  : 'hover:bg-secondary/50'
+                  ? 'bg-primary/5 hover:bg-primary/8'
+                  : 'hover:bg-secondary/45'
               )}
             >
-              {/* Rank badge */}
               <div className={cn(
-                'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold',
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold sm:h-10 sm:w-10 sm:text-base',
                 rankStyle.bg, rankStyle.text
               )}>
-                {entry.rank <= 3 ? entry.rank : `#${entry.rank}`}
+                {entry.rank}
               </div>
 
-              {/* Avatar */}
-              <Avatar className="h-8 w-8 shrink-0 border border-border">
-                {entry.avatarUrl && <AvatarImage src={entry.avatarUrl} alt={entry.name} />}
-                <AvatarFallback className="bg-secondary text-xs">
-                  {getInitials(entry.name)}
-                </AvatarFallback>
-              </Avatar>
-
-              {/* Name + tier */}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className={cn('truncate text-sm font-semibold', isMe && 'text-primary')}>
-                    {entry.name}
+              <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                <Avatar className="h-8 w-8 shrink-0 border border-border sm:h-10 sm:w-10">
+                  {entry.avatarUrl && <AvatarImage src={entry.avatarUrl} alt={entry.name} />}
+                  <AvatarFallback className="bg-primary/8 text-xs font-semibold text-primary">
+                    {getInitials(entry.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn('truncate text-xs font-semibold sm:text-sm', isMe && 'text-primary')}>
+                      {entry.name}
+                    </span>
+                    {isMe && (
+                      <Badge variant="outline" className="hidden shrink-0 rounded-full border-primary/30 py-0 text-[9px] text-primary sm:inline-flex">
+                        YOU
+                      </Badge>
+                    )}
+                  </div>
+                  <span className={cn('hidden text-xs sm:block', entry.gamesPlayed === 0 ? 'text-muted-foreground' : tier.color)}>
+                    {entry.gamesPlayed === 0 ? 'Unranked' : tier.name}
                   </span>
-                  {isMe && (
-                    <Badge variant="outline" className="shrink-0 border-primary py-0 text-[9px] text-primary">
-                      YOU
-                    </Badge>
-                  )}
                 </div>
-                <span className={cn('text-xs', entry.gamesPlayed === 0 ? 'text-muted-foreground' : tier.color)}>
-                  {entry.gamesPlayed === 0 ? 'Unranked' : tier.name}
-                </span>
               </div>
 
-              {/* RR + trend */}
-              <div className="flex shrink-0 items-center gap-1.5 text-right">
+              <span className="text-right text-sm font-semibold tabular-nums sm:text-base">{entry.rr}</span>
+              <div className="flex justify-end text-right">
                 {entry.rankTrend != null && entry.rankTrend !== 0 && (
                   <span className={cn(
-                    'flex items-center gap-0.5 text-[10px] font-semibold',
-                    entry.rankTrend > 0 ? 'text-green-500' : 'text-red-500'
+                    'flex items-center gap-1 text-xs font-medium',
+                    entry.rankTrend > 0 ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive'
                   )}>
                     {entry.rankTrend > 0
                       ? <TrendingUp className="h-3 w-3" />
@@ -112,10 +119,9 @@ export function MiniLeaderboard({ entries, currentUserId }: Props) {
                     {Math.abs(entry.rankTrend)}
                   </span>
                 )}
-                <div>
-                  <p className="text-sm font-bold text-primary">{entry.rr}</p>
-                  <p className="text-[10px] text-muted-foreground">RR</p>
-                </div>
+                {(entry.rankTrend == null || entry.rankTrend === 0) && (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
               </div>
             </Link>
           )

@@ -1,89 +1,27 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getSessionUser } from '@/lib/supabase-server'
-import { db } from '@/lib/db'
-import { users, seasons, seasonStats, matches } from '@/drizzle/schema'
-import { eq, and, or, asc } from 'drizzle-orm'
-import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
-import { PlayerCard } from '@/components/player-card'
+import { and, asc, eq, or } from 'drizzle-orm'
+import { Bell, CalendarDays, Loader2, Trophy } from 'lucide-react'
+import { buildMatchesForUser } from '@/app/api/matches/route'
+import { DashboardPanel } from '@/components/dashboard-panel'
 import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
-import { buildMatchesForUser } from '@/app/api/matches/route'
-import { PLACEMENT_GAMES } from '@/lib/elo'
-import Link from 'next/link'
+import { PlayerCard, type PlayerCardUser } from '@/components/player-card'
 import { Button } from '@/components/ui/button'
-import { Clock, Trophy, Loader2, Bell } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { matches, seasons, seasonStats, users } from '@/drizzle/schema'
+import { db } from '@/lib/db'
+import { PLACEMENT_GAMES } from '@/lib/elo'
+import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
+import { getSessionUser } from '@/lib/supabase-server'
 
-// ─── Async streaming sections ─────────────────────────────────────────────────
-
-async function VerifyNotice({ userId }: { userId: string }) {
-  const pending = await db
-    .select({ id: matches.id })
-    .from(matches)
-    .where(
-      and(
-        eq(matches.status, 'PENDING'),
-        or(eq(matches.team2Player1Id, userId), eq(matches.team2Player2Id, userId)),
-      ),
-    )
-  const count = pending.length
-  if (count === 0) return null
-
-  return (
-    <Link href="/submit-match?tab=verify">
-      <div className="flex items-center gap-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-700 dark:text-yellow-300 hover:bg-yellow-500/20 transition-colors">
-        <Bell className="h-4 w-4 shrink-0" />
-        <span>
-          You have <span className="font-semibold">{count} match{count !== 1 ? 'es' : ''}</span> waiting for your verification.
-        </span>
-        <span className="ml-auto font-medium underline underline-offset-2">Verify now</span>
-      </div>
-    </Link>
-  )
-}
-
-
-async function DashboardLeaderboard({ userId }: { userId: string }) {
-  const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
-  if (!activeSeason) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        No active season yet.
-      </p>
-    )
+async function DashboardLeaderboard({ seasonId, userId }: { seasonId: string | null; userId: string }) {
+  if (!seasonId) {
+    return <EmptyMessage>No active season yet.</EmptyMessage>
   }
 
-  const entries = await fetchCachedLeaderboardRows(activeSeason.id)
+  const entries = await fetchCachedLeaderboardRows(seasonId)
   return <MiniLeaderboard entries={entries} currentUserId={userId} />
-}
-
-async function DashboardPlayerCard({ userId }: { userId: string }) {
-  const [[profile], [activeSeason]] = await Promise.all([
-    db.select().from(users).where(eq(users.id, userId)),
-    db.select().from(seasons).where(eq(seasons.isActive, true)),
-  ])
-
-  let stats = null
-  if (activeSeason) {
-    const [s] = await db
-      .select()
-      .from(seasonStats)
-      .where(and(eq(seasonStats.userId, userId), eq(seasonStats.seasonId, activeSeason.id)))
-    stats = s ?? null
-  }
-
-  const playerCardUser = {
-    id: userId,
-    name: profile?.name ?? 'Player',
-    avatarUrl: profile?.avatarUrl ?? null,
-    rr: stats?.rr ?? 0,
-    gamesPlayed: stats?.gamesPlayed ?? 0,
-    wins: stats?.wins ?? 0,
-    losses: stats?.losses ?? 0,
-  }
-
-  return <PlayerCard user={playerCardUser} />
 }
 
 async function DashboardMatches({ userId }: { userId: string }) {
@@ -107,134 +45,120 @@ async function DashboardMatches({ userId }: { userId: string }) {
       .limit(PLACEMENT_GAMES),
   ])
 
-  const confirmedMatches = allMatches.filter(m => m.status === 'CONFIRMED').slice(0, 5)
+  const confirmedMatches = allMatches.filter(match => match.status === 'CONFIRMED').slice(0, 5)
   const pendingToVerify = allMatches.filter(
-    m =>
-      m.status === 'PENDING' &&
-      (m.team2Player1.id === userId || m.team2Player2.id === userId),
+    match =>
+      match.status === 'PENDING' &&
+      (match.team2Player1.id === userId || match.team2Player2.id === userId),
   )
-
-  const placementMatchIds = new Set(placementRows.map(r => r.id))
+  const placementMatchIds = new Set(placementRows.map(row => row.id))
 
   return (
-    <>
+    <div className="space-y-3">
       {pendingToVerify.length > 0 && (
-        <Link href="/submit-match">
-          <Button variant="outline" className="w-full gap-2">
-            <Clock className="h-4 w-4" />
-            {pendingToVerify.length} Pending Verification{pendingToVerify.length !== 1 ? 's' : ''}
-          </Button>
-        </Link>
-      )}
-
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Recent Matches</h2>
-          <Link href="/profile" className="text-xs text-primary hover:underline">
-            View all
+        <Button asChild variant="outline" className="w-full justify-center border-primary/25 text-primary">
+          <Link href="/submit-match?tab=verify">
+            <Bell className="h-4 w-4" />
+            {pendingToVerify.length} pending verification{pendingToVerify.length !== 1 ? 's' : ''}
           </Link>
-        </div>
-        <div className="space-y-2">
-          {confirmedMatches.length > 0 ? (
-            confirmedMatches.map(match => (
-              <MatchCard key={match.id} match={match} currentUserId={userId} compact isPlacement={placementMatchIds.has(match.id)} />
-            ))
-          ) : (
-            <div className="rounded-lg bg-secondary/30 p-6 text-center">
-              <p className="text-sm text-muted-foreground">No matches yet</p>
-              <Link href="/submit-match">
-                <Button className="mt-3" size="sm">Submit your first match</Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
+        </Button>
+      )}
 
-      {pendingToVerify.length > 0 && (
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Pending Verifications</h2>
-            <Link href="/submit-match" className="text-xs text-primary hover:underline">
-              View all
-            </Link>
-          </div>
-          <div className="space-y-2">
-            {pendingToVerify.slice(0, 2).map(match => (
-              <MatchCard key={match.id} match={match} currentUserId={userId} />
-            ))}
-          </div>
+      {confirmedMatches.length > 0 ? (
+        confirmedMatches.map(match => (
+          <MatchCard
+            key={match.id}
+            match={match}
+            currentUserId={userId}
+            compact
+            isPlacement={placementMatchIds.has(match.id)}
+          />
+        ))
+      ) : (
+        <div className="flex min-h-56 flex-col items-center justify-center text-center">
+          <span className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+            <CalendarDays className="h-6 w-6" strokeWidth={1.7} />
+          </span>
+          <p className="text-sm font-semibold">No matches yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Submit your first match to get started.</p>
+          <Button asChild className="mt-5 min-w-36">
+            <Link href="/submit-match">Submit Match</Link>
+          </Button>
         </div>
       )}
-    </>
-  )
-}
-
-// ─── Loading fallbacks ────────────────────────────────────────────────────────
-
-function SpinnerFallback() {
-  return (
-    <div className="flex items-center justify-center py-12">
-      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+function EmptyMessage({ children }: { children: React.ReactNode }) {
+  return <div className="flex min-h-64 items-center justify-center text-sm text-muted-foreground">{children}</div>
+}
+
+function SpinnerFallback({ height = 'min-h-64' }: { height?: string }) {
+  return (
+    <div className={`flex items-center justify-center ${height}`}>
+      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 export default async function DashboardPage() {
-  // getSession() reads the cookie — no network call to Supabase Auth.
-  // Middleware already verified the token, so this is safe and fast.
-  const user = await getSessionUser()
-  if (!user) redirect('/login')
+  const sessionUser = await getSessionUser()
+  if (!sessionUser) redirect('/login')
 
-  const [profile] = await db.select({ name: users.name }).from(users).where(eq(users.id, user.id))
-  const firstName = profile?.name?.split(' ')[0] ?? null
+  const [[profile], [activeSeason]] = await Promise.all([
+    db.select().from(users).where(eq(users.id, sessionUser.id)),
+    db.select().from(seasons).where(eq(seasons.isActive, true)),
+  ])
+
+  let stats: typeof seasonStats.$inferSelect | null = null
+  if (activeSeason) {
+    const [seasonStat] = await db
+      .select()
+      .from(seasonStats)
+      .where(and(eq(seasonStats.userId, sessionUser.id), eq(seasonStats.seasonId, activeSeason.id)))
+    stats = seasonStat ?? null
+  }
+
+  const player: PlayerCardUser = {
+    id: sessionUser.id,
+    name: profile?.name ?? 'Player',
+    avatarUrl: profile?.avatarUrl ?? null,
+    rr: stats?.rr ?? 0,
+    gamesPlayed: stats?.gamesPlayed ?? 0,
+    wins: stats?.wins ?? 0,
+    losses: stats?.losses ?? 0,
+  }
+  const firstName = player.name.split(' ')[0]
 
   return (
-    <div className="space-y-6">
-      {/* Header renders instantly */}
-      <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {firstName ? `Welcome back, ${firstName}` : 'Welcome back'}
-        </p>
-      </div>
+    <div className="space-y-5 sm:space-y-6">
+      <header>
+        <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-[34px]">Dashboard</h1>
+        <p className="mt-1 text-base text-muted-foreground">Welcome back, {firstName}</p>
+      </header>
 
-      <Suspense fallback={null}>
-        <VerifyNotice userId={user.id} />
-      </Suspense>
+      <div className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-6">
+        <DashboardPanel
+          title="Rankings"
+          icon={Trophy}
+          href="/leaderboard"
+          linkLabel="View full leaderboard"
+          className="min-w-0 xl:[contain:size]"
+        >
+          <Suspense fallback={<SpinnerFallback />}>
+            <DashboardLeaderboard seasonId={activeSeason?.id ?? null} userId={sessionUser.id} />
+          </Suspense>
+        </DashboardPanel>
 
-      {/* Two-column layout — each section streams in independently */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        {/* Left: Rankings */}
-        <Card className="flex flex-col">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Trophy className="h-4 w-4 text-primary" />
-                Rankings
-              </CardTitle>
-              <Link href="/leaderboard" className="text-xs text-primary hover:underline">
-                Full leaderboard
-              </Link>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 p-4 pt-0">
-            <Suspense fallback={<SpinnerFallback />}>
-              <DashboardLeaderboard userId={user.id} />
+        <div className="flex h-full min-w-0 flex-col gap-5 xl:gap-6">
+          <PlayerCard user={player} profileHref="/profile" />
+
+          <DashboardPanel title="Recent Games" href="/profile" linkLabel="View all">
+            <Suspense fallback={<SpinnerFallback height="min-h-56" />}>
+              <DashboardMatches userId={sessionUser.id} />
             </Suspense>
-          </CardContent>
-        </Card>
-
-        {/* Right: Player card + matches — each streams independently */}
-        <div className="space-y-6">
-          <Suspense fallback={<SpinnerFallback />}>
-            <DashboardPlayerCard userId={user.id} />
-          </Suspense>
-
-          <Suspense fallback={<SpinnerFallback />}>
-            <DashboardMatches userId={user.id} />
-          </Suspense>
+          </DashboardPanel>
         </div>
       </div>
     </div>
