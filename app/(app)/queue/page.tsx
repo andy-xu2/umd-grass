@@ -16,6 +16,9 @@ import { cn, getInitials } from '@/lib/utils'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase-browser'
 import type { CourtResponse, UserWithStats } from '@/lib/types'
+import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
+
+const realtimeTables = ['courts', 'court_queue_entries'] as const
 
 function PlayerCombobox({
   value,
@@ -114,6 +117,12 @@ export default function QueuePage() {
     })
     loadData().finally(() => setLoading(false))
   }, [loadData])
+
+  useRealtimeRefresh({
+    channelName: 'court-queue-updates',
+    tables: realtimeTables,
+    onRefresh: loadData,
+  })
 
   const sortedUsers = useMemo(
     () => [...users].sort((a, b) => a.name.localeCompare(b.name)),

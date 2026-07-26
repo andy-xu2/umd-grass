@@ -8,12 +8,15 @@ import { DashboardPanel } from '@/components/dashboard-panel'
 import { MatchCard } from '@/components/match-card'
 import { MiniLeaderboard } from '@/components/mini-leaderboard'
 import { PlayerCard, type PlayerCardUser } from '@/components/player-card'
+import { RealtimeRouteRefresh } from '@/components/realtime-route-refresh'
 import { Button } from '@/components/ui/button'
 import { matches, seasons, seasonStats, users } from '@/drizzle/schema'
 import { db } from '@/lib/db'
 import { PLACEMENT_GAMES } from '@/lib/elo'
 import { fetchCachedLeaderboardRows } from '@/lib/leaderboard'
 import { getSessionUser } from '@/lib/supabase-server'
+
+const realtimeTables = ['matches', 'season_stats', 'rr_changes'] as const
 
 async function DashboardLeaderboard({ seasonId, userId }: { seasonId: string | null; userId: string }) {
   if (!seasonId) {
@@ -133,6 +136,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-5 sm:space-y-6">
+      <RealtimeRouteRefresh
+        channelName="dashboard-updates"
+        tables={realtimeTables}
+      />
+
       <header>
         <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-[34px]">Dashboard</h1>
         <p className="mt-1 text-base text-muted-foreground">Welcome back, {firstName}</p>

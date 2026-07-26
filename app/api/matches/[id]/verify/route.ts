@@ -35,8 +35,8 @@ export async function PATCH(
   try {
     const result = await verifyMatch(id, user.id, action as VerificationAction)
 
-    revalidateTag(`leaderboard-${result.seasonId}`, 'max')
-    revalidateTag('leaderboard-lifetime', 'max')
+    revalidateTag(`leaderboard-${result.seasonId}`, { expire: 0 })
+    revalidateTag('leaderboard-lifetime', { expire: 0 })
 
     return NextResponse.json({
       ok: true,

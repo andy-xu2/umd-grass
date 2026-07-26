@@ -32,7 +32,11 @@ npm install
 
 Copy [`.env.example`](.env.example) to [`.env.local`](.env.local) and fill in values from Supabase.
 
-3. Run the app.
+3. Enable live updates.
+
+Run [`supabase/realtime-publication.sql`](supabase/realtime-publication.sql) once in the Supabase SQL editor. It adds the match, court queue, and ranking tables to the `supabase_realtime` publication.
+
+4. Run the app.
 
 ```bash
 npm run dev
