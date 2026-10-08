@@ -78,6 +78,14 @@ export interface AllTimeStats {
   seasonsPlayed: number
 }
 
+export interface RrHistoryEntry {
+  matchId: string
+  playedAt: string
+  rrBefore: number
+  rrAfter: number
+  delta: number
+}
+
 export interface LeaderboardResponse {
   entries: LeaderboardEntry[]
   seasonId: string | null

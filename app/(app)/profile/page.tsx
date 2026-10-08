@@ -6,6 +6,7 @@ import { eq, and, gt, count, desc, gte } from 'drizzle-orm'
 import { PLACEMENT_GAMES } from '@/lib/elo'
 import type { Season, AllTimeStats } from '@/lib/types'
 import ProfileClient from './profile-client'
+import { fetchRrHistory } from '@/lib/rr-history'
 
 export default async function ProfilePage() {
   const user = await getSessionUser()
@@ -82,6 +83,8 @@ export default async function ProfilePage() {
     }
   }
 
+  const rrHistory = seasonId ? await fetchRrHistory(user.id, seasonId) : []
+
   return (
     <ProfileClient
       initialProfile={{
@@ -95,6 +98,7 @@ export default async function ProfilePage() {
       initialSeasonId={seasonId}
       initialSeasons={seasonList}
       initialAllTime={allTime}
+      initialRrHistory={rrHistory}
     />
   )
 }

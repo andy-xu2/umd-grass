@@ -17,7 +17,8 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { MatchCard } from '@/components/match-card'
 import { PLACEMENT_GAMES } from '@/lib/elo'
-import type { Season, AllTimeStats, MatchResponse } from '@/lib/types'
+import type { Season, AllTimeStats, MatchResponse, RrHistoryEntry } from '@/lib/types'
+import { RrHistoryChart } from '@/components/rr-history-chart'
 
 type UserProfile = {
   id: string
@@ -43,9 +44,10 @@ interface Props {
   initialSeasonId: string | null
   initialSeasons: Season[]
   initialAllTime: AllTimeStats
+  initialRrHistory: RrHistoryEntry[]
 }
 
-export default function ProfileClient({ initialProfile, initialSeasonId, initialSeasons, initialAllTime }: Props) {
+export default function ProfileClient({ initialProfile, initialSeasonId, initialSeasons, initialAllTime, initialRrHistory }: Props) {
   const [profile, setProfile] = useState<UserProfile>(initialProfile)
   const [allTime] = useState<AllTimeStats>(initialAllTime)
   const [loadingSeason, setLoadingSeason] = useState(false)
@@ -337,6 +339,12 @@ export default function ProfileClient({ initialProfile, initialSeasonId, initial
               </Card>
             </div>
           )}
+
+          <RrHistoryChart
+            seasonId={seasonId}
+            initialSeasonId={initialSeasonId}
+            initialHistory={initialRrHistory}
+          />
 
           <Card>
             <CardHeader>
