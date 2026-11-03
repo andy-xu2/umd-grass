@@ -1,4 +1,4 @@
-import { DEFAULT_RR_CONFIG, type RrConfig } from './rr-config'
+import { DEFAULT_RR_CONFIG, type RrConfig } from './rr-config.ts'
 
 /**
  * Maximum RR a player can reach during initial career placement.
