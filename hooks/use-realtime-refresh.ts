@@ -67,14 +67,22 @@ export function useRealtimeRefresh({
       )
     }
 
-    channel.subscribe(status => {
-      if (status !== 'SUBSCRIBED') return
+    let cancelled = false
 
-      if (hasSubscribed || refreshOnInitialSubscribe) scheduleRefresh()
-      hasSubscribed = true
+    // A cookie-restored session never hands its JWT to realtime, so the channel
+    // would join as anon and RLS would drop every event. Load the token first.
+    void supabase.realtime.setAuth().finally(() => {
+      if (cancelled) return
+      channel.subscribe(status => {
+        if (status !== 'SUBSCRIBED') return
+
+        if (hasSubscribed || refreshOnInitialSubscribe) scheduleRefresh()
+        hasSubscribed = true
+      })
     })
 
     return () => {
+      cancelled = true
       if (refreshTimer) clearTimeout(refreshTimer)
       void supabase.removeChannel(channel)
     }
