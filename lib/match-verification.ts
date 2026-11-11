@@ -49,6 +49,11 @@ export async function verifyMatch(
       throw new MatchVerificationError(400, 'Match is not pending')
     }
 
+    // The expiry cron only runs hourly, so a lapsed match can still read PENDING.
+    if (match.expiresAt < new Date()) {
+      throw new MatchVerificationError(400, 'Match has expired')
+    }
+
     if (action === 'reject') {
       const [rejected] = await tx
         .update(matches)
