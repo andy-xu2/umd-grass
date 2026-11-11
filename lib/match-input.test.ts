@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { playedAtError } from './match-input'
+import { isUuid, playedAtError } from './match-input'
+
+describe('isUuid', () => {
+  it('accepts a UUID in either case', () => {
+    expect(isUuid('394b1992-6584-4be8-baca-9fe9a7fbbb32')).toBe(true)
+    expect(isUuid('394B1992-6584-4BE8-BACA-9FE9A7FBBB32')).toBe(true)
+  })
+
+  it('rejects malformed strings and non-strings', () => {
+    expect(isUuid('394b1992-6584-4be8-baca-9fe9a7fbbb3')).toBe(false)
+    expect(isUuid("394b1992-6584-4be8-baca-9fe9a7fbbb32' OR 1=1")).toBe(false)
+    expect(isUuid('')).toBe(false)
+    expect(isUuid(123)).toBe(false)
+    expect(isUuid(undefined)).toBe(false)
+  })
+})
 
 describe('playedAtError', () => {
   const seasonStart = new Date('2026-06-01T04:00:00.000Z')

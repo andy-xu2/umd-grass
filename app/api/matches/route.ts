@@ -9,7 +9,7 @@ import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
 import { fromZonedTime } from 'date-fns-tz'
-import { playedAtError } from '@/lib/match-input'
+import { isUuid, playedAtError } from '@/lib/match-input'
 
 export async function buildMatchesForUser(userId: string, limit?: number): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -173,9 +173,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Match cannot end in a tie' }, { status: 400 })
   }
 
-  const allIds = [user.id, teammateId, opponent1Id, opponent2Id]
+  if (![teammateId, opponent1Id, opponent2Id].every(isUuid)) {
+    return NextResponse.json({ error: 'Invalid player id' }, { status: 400 })
+  }
+  // Lowercase so an upper-case copy of an id can't pass the uniqueness check.
+  const otherIds = [teammateId, opponent1Id, opponent2Id].map(id => id.toLowerCase())
+
+  const allIds = [user.id, ...otherIds]
   if (new Set(allIds).size !== 4) {
     return NextResponse.json({ error: 'All four players must be different' }, { status: 400 })
+  }
+
+  const activePlayers = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(inArray(users.id, otherIds), eq(users.isDeleted, false)))
+  if (activePlayers.length !== otherIds.length) {
+    return NextResponse.json({ error: 'One or more players do not exist or have been deleted' }, { status: 400 })
   }
 
   const [activeSeason] = await db.select().from(seasons).where(eq(seasons.isActive, true))
