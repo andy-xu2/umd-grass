@@ -14,6 +14,7 @@ import { isAdmin } from '@/lib/utils'
 import { recalculateSeasonRrFromTx } from '@/lib/recalculate-rr'
 import { invalidateLeaderboardCache } from '@/lib/leaderboard'
 import type { SetScore } from '@/lib/types'
+import { setScoresError } from '@/lib/match-input'
 
 export async function PATCH(
   request: Request,
@@ -29,19 +30,14 @@ export async function PATCH(
   }
   const { id } = await params
   const body = await request.json() as { setScores?: SetScore[] }
-  if (!Array.isArray(body.setScores) || body.setScores.length === 0) {
-    return NextResponse.json({ error: 'setScores array is required' }, { status: 400 })
+  const setsProblem = setScoresError(body.setScores)
+  if (setsProblem) {
+    return NextResponse.json({ error: setsProblem }, { status: 400 })
   }
-  for (const s of body.setScores) {
-    if (typeof s.team1 !== 'number' || typeof s.team2 !== 'number' || s.team1 === s.team2) {
-      return NextResponse.json({ error: 'Each set must have different scores' }, { status: 400 })
-    }
-  }
-  const newTeam1Sets = body.setScores.filter(s => s.team1 > s.team2).length
-  const newTeam2Sets = body.setScores.filter(s => s.team2 > s.team1).length
-  if (newTeam1Sets === newTeam2Sets) {
-    return NextResponse.json({ error: 'Match cannot end in a tie' }, { status: 400 })
-  }
+  // Store only the two score fields, never extra keys from the request body.
+  const cleanSets = (body.setScores as SetScore[]).map(({ team1, team2 }) => ({ team1, team2 }))
+  const newTeam1Sets = cleanSets.filter(s => s.team1 > s.team2).length
+  const newTeam2Sets = cleanSets.length - newTeam1Sets
   const result = await db.transaction(async tx => {
     const [match] = await tx.select().from(matches).where(eq(matches.id, id))
     if (!match) return { error: 'Match not found', status: 404 } as const
@@ -52,7 +48,7 @@ export async function PATCH(
     await tx
       .update(matches)
       .set({
-        setScores: body.setScores,
+        setScores: cleanSets,
         team1Sets: newTeam1Sets,
         team2Sets: newTeam2Sets,
       })

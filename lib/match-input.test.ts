@@ -1,5 +1,47 @@
 import { describe, expect, it } from 'vitest'
-import { isUuid, playedAtError } from './match-input'
+import { isUuid, playedAtError, setScoresError } from './match-input'
+
+describe('setScoresError', () => {
+  it('accepts normal results', () => {
+    expect(setScoresError([{ team1: 21, team2: 18 }, { team1: 21, team2: 14 }])).toBeNull()
+    expect(setScoresError([{ team1: 0, team2: 99 }])).toBeNull()
+    expect(setScoresError([
+      { team1: 21, team2: 1 }, { team1: 1, team2: 21 }, { team1: 21, team2: 1 },
+      { team1: 1, team2: 21 }, { team1: 15, team2: 13 },
+    ])).toBeNull()
+    // Best of 7 that goes the distance.
+    expect(setScoresError([
+      { team1: 21, team2: 1 }, { team1: 1, team2: 21 }, { team1: 21, team2: 1 },
+      { team1: 1, team2: 21 }, { team1: 21, team2: 1 }, { team1: 1, team2: 21 },
+      { team1: 15, team2: 13 },
+    ])).toBeNull()
+  })
+
+  it('rejects missing, empty, and too many sets', () => {
+    expect(setScoresError(undefined)).toMatch(/at least one/i)
+    expect(setScoresError([])).toMatch(/at least one/i)
+    expect(setScoresError(Array.from({ length: 8 }, () => ({ team1: 21, team2: 1 })))).toMatch(/at most 7/)
+  })
+
+  it('rejects non-integer, negative, oversized, and malformed scores', () => {
+    for (const bad of [
+      { team1: 21.5, team2: 3 },
+      { team1: -1, team2: 21 },
+      { team1: 100, team2: 0 },
+      { team1: '21', team2: 3 },
+      { team1: 21 },
+      null,
+      'x',
+    ]) {
+      expect(setScoresError([bad])).toMatch(/whole numbers/)
+    }
+  })
+
+  it('rejects tied sets and tied matches', () => {
+    expect(setScoresError([{ team1: 21, team2: 21 }])).toMatch(/sets cannot end in a tie/)
+    expect(setScoresError([{ team1: 21, team2: 1 }, { team1: 1, team2: 21 }])).toMatch(/Match cannot end in a tie/)
+  })
+})
 
 describe('isUuid', () => {
   it('accepts a UUID in either case', () => {

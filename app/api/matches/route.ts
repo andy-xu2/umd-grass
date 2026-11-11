@@ -9,7 +9,7 @@ import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
 import { fromZonedTime } from 'date-fns-tz'
-import { isUuid, playedAtError } from '@/lib/match-input'
+import { isUuid, playedAtError, setScoresError } from '@/lib/match-input'
 
 export async function buildMatchesForUser(userId: string, limit?: number): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -150,28 +150,14 @@ export async function POST(request: Request) {
   if (!playedDate || !playedTime) {
     return NextResponse.json({ error: 'Played date and time are required' }, { status: 400 })
   }
-  if (!Array.isArray(sets) || sets.length === 0) {
-    return NextResponse.json({ error: 'At least one set is required' }, { status: 400 })
+  const setsProblem = setScoresError(sets)
+  if (setsProblem) {
+    return NextResponse.json({ error: setsProblem }, { status: 400 })
   }
-
-  for (const set of sets) {
-    if (typeof set.team1 !== 'number' || typeof set.team2 !== 'number') {
-      return NextResponse.json({ error: 'Each set must have numeric scores' }, { status: 400 })
-    }
-    if (set.team1 < 0 || set.team2 < 0) {
-      return NextResponse.json({ error: 'Set scores cannot be negative' }, { status: 400 })
-    }
-    if (set.team1 === set.team2) {
-      return NextResponse.json({ error: 'Individual sets cannot end in a tie' }, { status: 400 })
-    }
-  }
-
-  const team1Sets = sets.filter(s => s.team1 > s.team2).length
-  const team2Sets = sets.filter(s => s.team2 > s.team1).length
-
-  if (team1Sets === team2Sets) {
-    return NextResponse.json({ error: 'Match cannot end in a tie' }, { status: 400 })
-  }
+  // Store only the two score fields, never extra keys from the request body.
+  const cleanSets = (sets as SetScore[]).map(({ team1, team2 }) => ({ team1, team2 }))
+  const team1Sets = cleanSets.filter(s => s.team1 > s.team2).length
+  const team2Sets = cleanSets.length - team1Sets
 
   if (![teammateId, opponent1Id, opponent2Id].every(isUuid)) {
     return NextResponse.json({ error: 'Invalid player id' }, { status: 400 })
@@ -228,7 +214,7 @@ export async function POST(request: Request) {
       team1Player2Id: teammateId,
       team2Player1Id: opponent1Id,
       team2Player2Id: opponent2Id,
-      setScores: sets,
+      setScores: cleanSets,
       team1Sets,
       team2Sets,
       playedAt,
