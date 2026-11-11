@@ -9,6 +9,7 @@ import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
 import { fromZonedTime } from 'date-fns-tz'
+import { playedAtError } from '@/lib/match-input'
 
 export async function buildMatchesForUser(userId: string, limit?: number): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -197,6 +198,10 @@ export async function POST(request: Request) {
   }
   if (activeSeason.endedAt && activeSeason.endedAt < now) {
     return NextResponse.json({ error: 'Season has ended' }, { status: 400 })
+  }
+  const playedAtProblem = playedAtError(playedAt, activeSeason.startedAt, now)
+  if (playedAtProblem) {
+    return NextResponse.json({ error: playedAtProblem }, { status: 400 })
   }
   const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
 
