@@ -7,7 +7,9 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
-  const next = searchParams.get('next') ?? '/dashboard'
+  const rawNext = searchParams.get('next') ?? '/dashboard'
+  // Only same-site paths: '@evil.com' or '//evil.com' would send the user off-site.
+  const next = /^\/(?![/\\])/.test(rawNext) ? rawNext : '/dashboard'
 
   if (code || (tokenHash && type)) {
     const redirectResponse = NextResponse.redirect(`${origin}${next}`)
