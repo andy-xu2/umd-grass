@@ -19,6 +19,7 @@ import { isUnranked } from '@/lib/ranks'
 import type { UserWithStats, MatchResponse, SetScore, Season } from '@/lib/types'
 import { useRealtimeRefresh } from '@/hooks/use-realtime-refresh'
 import { formatInTimeZone } from 'date-fns-tz'
+import { toast } from 'sonner'
 
 const realtimeTables = ['matches', 'season_stats'] as const
 
@@ -248,7 +249,14 @@ export default function SubmitMatchPage() {
 
       if (res.ok) {
         await loadData()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error ?? `Failed to ${action} match`)
+        // The match may have expired or been handled elsewhere; show its current state.
+        await loadData()
       }
+    } catch {
+      toast.error('Network error, please try again')
     } finally {
       setVerifyingMatch(null)
     }
