@@ -67,8 +67,13 @@ export async function GET(
     }
   }
 
+  // Emails are private: only the profile's owner and the admin see them.
+  const { email, ...publicProfile } = profile
+  const showEmail = user.id === id || isAdmin(user.id)
+
   return NextResponse.json({
-    ...profile,
+    ...publicProfile,
+    ...(showEmail && { email }),
     createdAt: profile.createdAt.toISOString(),
     stats,
     rank,

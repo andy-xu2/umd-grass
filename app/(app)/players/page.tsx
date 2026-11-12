@@ -14,7 +14,6 @@ export default async function PlayersPage() {
   const players = allUsers.map(u => ({
     id: u.id,
     name: u.name,
-    email: u.email,
     avatarUrl: u.avatarUrl,
     createdAt: u.createdAt.toISOString(),
   }))

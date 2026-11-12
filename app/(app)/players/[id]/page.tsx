@@ -19,7 +19,6 @@ import type { MatchResponse } from '@/lib/types'
 type PlayerProfile = {
   id: string
   name: string
-  email: string
   avatarUrl: string | null
   createdAt: string
   stats: {
