@@ -23,20 +23,22 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!,
     )
 
-    const { data, error } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?next=/reset-password`,
-      },
-    })
+    const { data, error } = await admin.auth.admin.generateLink({ type: 'recovery', email })
 
-    if (error || !data?.properties?.action_link) {
+    if (error || !data?.properties?.hashed_token) {
       console.error('[forgot-password] generateLink failed:', error)
       return successResponse
     }
 
-    const result = await sendPasswordResetEmail(email, data.properties.action_link)
+    // Supabase's own action_link redirects with tokens in the URL #fragment, which
+    // the server callback can't read. Send our callback the token hash instead.
+    const resetLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?${new URLSearchParams({
+      token_hash: data.properties.hashed_token,
+      type: 'recovery',
+      next: '/reset-password',
+    })}`
+
+    const result = await sendPasswordResetEmail(email, resetLink)
     console.log('[forgot-password] Resend result:', JSON.stringify(result))
   } catch (err) {
     console.error('[forgot-password] unexpected error:', err)
