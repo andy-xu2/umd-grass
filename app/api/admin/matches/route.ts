@@ -9,6 +9,7 @@ import { eq, desc, and, inArray } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { isAdmin } from '@/lib/utils'
 import type { MatchResponse, SetScore } from '@/lib/types'
+import { effectiveStatus } from '@/lib/match-input'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
     rrByMatch.set(c.matchId, arr)
   }
 
+  const now = new Date()
   const result: MatchResponse[] = rows.map(row => ({
     id: row.id,
     seasonId: row.seasonId,
@@ -100,7 +102,7 @@ export async function GET(request: NextRequest) {
     setScores: row.setScores as SetScore[] | null,
     team1Sets: row.team1Sets,
     team2Sets: row.team2Sets,
-    status: row.status,
+    status: effectiveStatus(row.status, row.expiresAt, now),
     submittedAt: row.submittedAt.toISOString(),
     playedAt: (row.playedAt ?? row.submittedAt).toISOString(),
     expiresAt: row.expiresAt.toISOString(),
