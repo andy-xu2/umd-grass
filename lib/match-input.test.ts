@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isUuid, playedAtError, setScoresError } from './match-input'
+import { effectiveStatus, isUuid, playedAtError, setScoresError } from './match-input'
 
 describe('setScoresError', () => {
   it('accepts normal results', () => {
@@ -78,5 +78,21 @@ describe('playedAtError', () => {
   it('allows up to 5 minutes ahead but rejects later times', () => {
     expect(playedAtError(new Date(now.getTime() + 5 * 60 * 1000), seasonStart, now)).toBeNull()
     expect(playedAtError(new Date(now.getTime() + 5 * 60 * 1000 + 1), seasonStart, now)).toMatch(/future/)
+  })
+})
+
+describe('effectiveStatus', () => {
+  const now = new Date('2026-07-01T18:00:00.000Z')
+  const past = new Date(now.getTime() - 1)
+  const future = new Date(now.getTime() + 1)
+
+  it('reports a lapsed pending match as expired', () => {
+    expect(effectiveStatus('PENDING', past, now)).toBe('EXPIRED')
+    expect(effectiveStatus('PENDING', future, now)).toBe('PENDING')
+  })
+
+  it('leaves other statuses alone', () => {
+    expect(effectiveStatus('CONFIRMED', past, now)).toBe('CONFIRMED')
+    expect(effectiveStatus('REJECTED', past, now)).toBe('REJECTED')
   })
 })

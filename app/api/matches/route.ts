@@ -9,7 +9,7 @@ import { eq, or, and, inArray, desc } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import type { MatchResponse, SetScore } from '@/lib/types'
 import { fromZonedTime } from 'date-fns-tz'
-import { isUuid, playedAtError, setScoresError } from '@/lib/match-input'
+import { effectiveStatus, isUuid, playedAtError, setScoresError } from '@/lib/match-input'
 
 export async function buildMatchesForUser(userId: string, limit?: number): Promise<MatchResponse[]> {
   const t1p1 = alias(users, 't1p1')
@@ -82,6 +82,7 @@ export async function buildMatchesForUser(userId: string, limit?: number): Promi
     )
 
   const rrMap = new Map(rrRows.map(r => [r.matchId, r.delta]))
+  const now = new Date()
 
   return rows.map(row => ({
     id: row.id,
@@ -110,7 +111,7 @@ export async function buildMatchesForUser(userId: string, limit?: number): Promi
     setScores: row.setScores as SetScore[] | null,
     team1Sets: row.team1Sets,
     team2Sets: row.team2Sets,
-    status: row.status,
+    status: effectiveStatus(row.status, row.expiresAt, now),
     submittedAt: row.submittedAt.toISOString(),
     playedAt: (row.playedAt ?? row.submittedAt).toISOString(),
     expiresAt: row.expiresAt.toISOString(),

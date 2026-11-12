@@ -42,6 +42,14 @@ function isPoints(value: unknown): value is number {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= MAX_SET_POINTS
 }
 
+/**
+ * The expiry cron only runs hourly, so a lapsed match can still read PENDING.
+ * Report it as EXPIRED so clients stop offering confirm/reject for it.
+ */
+export function effectiveStatus<S extends string>(status: S, expiresAt: Date, now: Date): S | 'EXPIRED' {
+  return status === 'PENDING' && expiresAt < now ? 'EXPIRED' : status
+}
+
 /** A match must be played inside the season and not in the future. */
 export function playedAtError(playedAt: Date, seasonStartedAt: Date, now: Date): string | null {
   if (playedAt < seasonStartedAt) return 'Played date is before the season started'

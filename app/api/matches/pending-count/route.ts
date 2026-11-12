@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { db } from '@/lib/db'
 import { matches } from '@/drizzle/schema'
-import { eq, or, and } from 'drizzle-orm'
+import { eq, or, and, gt } from 'drizzle-orm'
 
 export async function GET() {
   const supabase = await createClient()
@@ -17,6 +17,7 @@ export async function GET() {
     .where(
       and(
         eq(matches.status, 'PENDING'),
+        gt(matches.expiresAt, new Date()),
         or(
           eq(matches.team2Player1Id, user.id),
           eq(matches.team2Player2Id, user.id),
