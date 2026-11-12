@@ -128,8 +128,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const updates: Partial<{ avatarUrl: string | null }> = {}
-  if ('avatarUrl' in body) updates.avatarUrl = body.avatarUrl
+  const updates: Partial<{ avatarUrl: null }> = {}
+  if ('avatarUrl' in body) {
+    // Uploads go through /api/users/me/avatar; an arbitrary URL here would skip its checks.
+    if (body.avatarUrl !== null) {
+      return NextResponse.json({ error: 'Use the avatar upload to set a photo' }, { status: 400 })
+    }
+    updates.avatarUrl = null
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
