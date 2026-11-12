@@ -51,7 +51,8 @@ export interface SeasonStatsShape {
 export interface UserWithStats {
   id: string
   name: string
-  email: string
+  /** Only sent to the admin. */
+  email?: string
   avatarUrl: string | null
   createdAt: string
   stats: SeasonStatsShape | null

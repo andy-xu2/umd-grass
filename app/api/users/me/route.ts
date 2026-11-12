@@ -1,6 +1,6 @@
 // GET  /api/users/me            — current user's profile + active-season stats + rank
 // GET  /api/users/me?seasonId=  — same but for the specified season
-// PATCH /api/users/me           — update avatarUrl and/or email (auth required)
+// PATCH /api/users/me           — update avatarUrl and/or email (auth required; email needs currentPassword)
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
@@ -68,7 +68,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const body = await request.json()
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+  }
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -79,6 +82,18 @@ export async function PATCH(request: Request) {
   // (which fires on ghost/unconfirmed users) and updates immediately
   if (typeof body.email === 'string' && body.email.trim()) {
     const newEmail = body.email.trim()
+    // The new email is confirmed immediately, so require the password: otherwise
+    // anyone holding a session could redirect password resets and take the account.
+    if (typeof body.currentPassword !== 'string' || !body.currentPassword) {
+      return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: body.currentPassword,
+    })
+    if (signInError) {
+      return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+    }
     const { error: authError } = await admin.auth.admin.updateUserById(user.id, {
       email: newEmail,
       email_confirm: true,
@@ -116,8 +131,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const updates: Partial<{ avatarUrl: string | null }> = {}
-  if ('avatarUrl' in body) updates.avatarUrl = body.avatarUrl
+  const updates: Partial<{ avatarUrl: null }> = {}
+  if ('avatarUrl' in body) {
+    // Uploads go through /api/users/me/avatar; an arbitrary URL here would skip its checks.
+    if (body.avatarUrl !== null) {
+      return NextResponse.json({ error: 'Use the avatar upload to set a photo' }, { status: 400 })
+    }
+    updates.avatarUrl = null
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })

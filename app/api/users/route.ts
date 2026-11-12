@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { users, seasons, seasonStats } from '@/drizzle/schema'
 import { eq } from 'drizzle-orm'
 import type { UserWithStats } from '@/lib/types'
+import { isAdmin } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -24,7 +25,10 @@ export async function GET(request: NextRequest) {
     resolvedSeasonId = activeSeason?.id ?? null
   }
 
-  const allUsers = await db.select().from(users).where(eq(users.isDeleted, false))
+  // Emails are private: only the admin (who searches by them) gets them.
+  const showEmail = isAdmin(user.id)
+  const allUsers = (await db.select().from(users).where(eq(users.isDeleted, false)))
+    .map(({ email, ...u }) => (showEmail ? { ...u, email } : u))
 
   if (!resolvedSeasonId) {
     const result: UserWithStats[] = allUsers.map(u => ({
