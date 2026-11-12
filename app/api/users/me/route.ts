@@ -1,6 +1,6 @@
 // GET  /api/users/me            — current user's profile + active-season stats + rank
 // GET  /api/users/me?seasonId=  — same but for the specified season
-// PATCH /api/users/me           — update avatarUrl and/or email (auth required)
+// PATCH /api/users/me           — update avatarUrl and/or email (auth required; email needs currentPassword)
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
@@ -79,6 +79,18 @@ export async function PATCH(request: Request) {
   // (which fires on ghost/unconfirmed users) and updates immediately
   if (typeof body.email === 'string' && body.email.trim()) {
     const newEmail = body.email.trim()
+    // The new email is confirmed immediately, so require the password: otherwise
+    // anyone holding a session could redirect password resets and take the account.
+    if (typeof body.currentPassword !== 'string' || !body.currentPassword) {
+      return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
+    }
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: body.currentPassword,
+    })
+    if (signInError) {
+      return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+    }
     const { error: authError } = await admin.auth.admin.updateUserById(user.id, {
       email: newEmail,
       email_confirm: true,
