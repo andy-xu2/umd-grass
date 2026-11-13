@@ -25,8 +25,9 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
       variant="ghost"
       size="icon"
       className={cn('rounded-full text-muted-foreground hover:text-foreground', className)}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      disabled={!mounted}
+      // No `disabled` before mount: Firefox restores a button's enabled state on
+      // reload, which strips the server's attribute and breaks hydration.
+      onClick={() => mounted && setTheme(isDark ? 'light' : 'dark')}
       title={mounted ? label : 'Change color theme'}
       aria-label={mounted ? label : 'Change color theme'}
     >
